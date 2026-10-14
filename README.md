@@ -7,7 +7,7 @@ Bitcoin-backed MUSD credit lines and instant invoice settlement on Mezo.
 > invoice credit-mints are **simulated in the browser** and persisted to `localStorage`. Simulated transaction hashes are
 > random (`fakeTx()`); explorer links will not resolve. On-chain transfers are marked `on-chain` in `/activity` and resolve. Connecting a wallet does not provide on-chain credit or payments by itself.
 
-## Buildathon (AKINDO OVOO0gdrVU8379D10 — Build with MUSD and MEZO)
+## Buildathon (AKINDO Buildathon — Build with MUSD and MEZO)
 - **Tracks:** 1 DeFi (borrow/lend/loop/yield) + 2 Access & Distribution (pay links, QR, checkout). This build submits to both.
 - **Chains:** Mezo testnet 31611 (Wave 1 live leg), Mezo mainnet 31612 ready, Ethereum/Base/BNB Chain supported for deployment. Testnet accepted per rules.
 - **Target group:** BTC holders who want dollar liquidity without selling; freelancers/SMBs billing in MUSD; mobile + desktop, global, beginner-friendly (tier presets, gauge, shield).
