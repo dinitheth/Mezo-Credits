@@ -109,6 +109,23 @@ contract InvoiceRouter {
     bytes calldata sig
   ) external {
     if (block.timestamp > deadline) revert Expired();
+    _verifyAndConsume(payer, id, amount, to, desc, deadline, nonce, sig);
+    bool ok = musd.transferFrom(payer, to, amount);
+    if (!ok) revert TransferFailed();
+
+    emit InvoicePaid(id, payer, to, amount, desc);
+  }
+
+  function _verifyAndConsume(
+    address payer,
+    string calldata id,
+    uint256 amount,
+    address to,
+    string calldata desc,
+    uint256 deadline,
+    string calldata nonce,
+    bytes calldata sig
+  ) internal {
     bytes32 nkey = keccak256(bytes(nonce));
     if (nonceUsed[payer][nkey]) revert NonceUsed();
 
@@ -118,9 +135,5 @@ contract InvoiceRouter {
     if (signer == address(0) || signer != payer) revert BadSignature();
 
     nonceUsed[payer][nkey] = true;
-    bool ok = musd.transferFrom(payer, to, amount);
-    if (!ok) revert TransferFailed();
-
-    emit InvoicePaid(id, payer, to, amount, desc);
   }
 }
