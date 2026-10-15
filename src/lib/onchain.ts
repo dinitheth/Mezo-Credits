@@ -246,9 +246,9 @@ export function invoiceTypedData(chainId: number, verifyingContract: string, inv
 }
 
 /**
- * Real wallet signature via `eth_signTypedData_v4`. Router on-chain
- * verification is phase 3; the signature is stored in the activity note today
- * so judges can inspect a genuine EIP-712 flow end to end.
+ * Real wallet signature via `eth_signTypedData_v4`. When `VITE_ROUTER_*` is
+ * set, Checkout signs against the deployed InvoiceRouter so `payInvoice`
+ * verifies on-chain; otherwise the signature is stored in the ledger note.
  */
 export async function signInvoice712(account: string, chainId: number, verifyingContract: string, inv: Invoice712): Promise<string> {
   const e = provider();
@@ -259,4 +259,53 @@ export async function signInvoice712(account: string, chainId: number, verifying
     params: [account, JSON.stringify(typed)],
   })) as string;
   return sig;
+}
+
+// ---------------------------------------------------------------------------
+// InvoiceRouter (Wave 1 custom contract leg — `contracts/InvoiceRouter.sol`)
+// ---------------------------------------------------------------------------
+
+export function routerAddressFor(chainId: number | null): string | null {
+  if (chainId === 31611) return env("VITE_ROUTER_ADDRESS_TESTNET");
+  if (chainId === 31612) return env("VITE_ROUTER_ADDRESS_MAINNET");
+  return null;
+}
+
+const ERC20_APPROVE_ABI = [
+  { name: "approve", type: "function", stateMutability: "nonpayable", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }] },
+] as const;
+
+const ROUTER_ABI = [
+  {
+    name: "payInvoice", type: "function", stateMutability: "nonpayable",
+    inputs: [
+      { name: "payer", type: "address" }, { name: "id", type: "string" }, { name: "amount", type: "uint256" },
+      { name: "to", type: "address" }, { name: "desc", type: "string" }, { name: "deadline", type: "uint256" },
+      { name: "nonce", type: "string" }, { name: "sig", type: "bytes" },
+    ],
+    outputs: [],
+  },
+] as const;
+
+/** Approve the router to pull MUSD (one-time per amount). Returns tx hash. */
+export async function approveRouter(musd: string, router: string, amountMusd: number | string, from: string): Promise<string> {
+  const { encodeFunctionData } = await import("viem");
+  const data = encodeFunctionData({ abi: ERC20_APPROVE_ABI, functionName: "approve", args: [router as `0x${string}`, parseMUSD(amountMusd)] });
+  const e = provider();
+  if (!e) throw new Error("No browser wallet found.");
+  return (await e.request({ method: "eth_sendTransaction", params: [{ from, to: musd, data }] })) as string;
+}
+
+export type RouterPayment = { payer: string; id: string; amount: number | string; to: string; desc: string; deadline: number; nonce: string; sig: string };
+
+/** Submit a signed invoice to `InvoiceRouter.payInvoice`. Returns tx hash. */
+export async function payViaRouter(router: string, p: RouterPayment, from: string): Promise<string> {
+  const { encodeFunctionData } = await import("viem");
+  const data = encodeFunctionData({
+    abi: ROUTER_ABI, functionName: "payInvoice",
+    args: [p.payer as `0x${string}`, p.id, parseMUSD(p.amount), p.to as `0x${string}`, p.desc, BigInt(p.deadline), p.nonce, p.sig as `0x${string}`],
+  });
+  const e = provider();
+  if (!e) throw new Error("No browser wallet found.");
+  return (await e.request({ method: "eth_sendTransaction", params: [{ from, to: router, data }] })) as string;
 }

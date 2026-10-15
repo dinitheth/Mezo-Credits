@@ -7,7 +7,7 @@ import { CreditForm } from "@/components/CreditForm";
 import { InvoiceQR } from "@/components/InvoiceQR";
 import { Btn, Card } from "@/components/ui-bits";
 import { MEZO, fakeTx, getState, logActivity, num, setState, short, useStore } from "@/lib/mezo";
-import { musdAddressFor, sendMusd, signInvoice712 } from "@/lib/onchain";
+import { approveRouter, musdAddressFor, payViaRouter, routerAddressFor, sendMusd, signInvoice712 } from "@/lib/onchain";
 import { cn } from "@/lib/utils";
 
 const search = z.object({
@@ -42,7 +42,10 @@ function Checkout() {
   const [busy, setBusy] = useState(false);
   const [payErr, setPayErr] = useState<string | null>(null);
   const [sig, setSig] = useState<string | null>(null);
+  const [sigMeta, setSigMeta] = useState<{ deadline: number; nonce: string } | null>(null);
   const [sigErr, setSigErr] = useState<string | null>(null);
+  const [routerBusy, setRouterBusy] = useState(false);
+  const [routerMsg, setRouterMsg] = useState<string | null>(null);
 
   const markPaid = (t: string, onchain = false, extra?: string) => {
     setState({ invoices: getState().invoices.map((i) => (i.id === inv.id ? { ...i, paid: true, tx: t } : i)) });
@@ -81,18 +84,61 @@ function Checkout() {
       const chainId = s.chainId;
       if (!account) throw new Error("Connect a wallet first.");
       if (!chainId) throw new Error("Unknown chain.");
-      const verifying = musdAddressFor(chainId) ?? inv.to;
+      const verifying = routerAddressFor(chainId) ?? musdAddressFor(chainId) ?? inv.to;
+      const deadline = Math.floor(Date.now() / 1000) + 3600;
+      const nonce = `${Date.now()}`;
       const signature = await signInvoice712(account, chainId, verifying, {
         id: inv.id || "no-id",
         amount: inv.amount,
         to: inv.to,
         desc: inv.desc.slice(0, 140),
-        deadline: Math.floor(Date.now() / 1000) + 3600,
-        nonce: `${Date.now()}`,
+        deadline,
+        nonce,
       });
       setSig(signature);
+      setSigMeta({ deadline, nonce });
     } catch (e) {
       setSigErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const payViaRouterFlow = async () => {
+    setRouterMsg(null);
+    setSigErr(null);
+    try {
+      const account = s.account;
+      const chainId = s.chainId;
+      if (!account) throw new Error("Connect a wallet first.");
+      if (!chainId) throw new Error("Unknown chain.");
+      const router = routerAddressFor(chainId);
+      const musd = musdAddressFor(chainId);
+      if (!router) throw new Error("Set VITE_ROUTER_ADDRESS_TESTNET after deploying contracts/InvoiceRouter.sol (see contracts/README.md).");
+      if (!musd) throw new Error("No MUSD on this chain — switch to Mezo testnet (31611).");
+      let signature = sig;
+      let meta = sigMeta;
+      if (!signature || !meta) {
+        await signDelegation();
+        signature = sig;
+        meta = sigMeta;
+        if (!signature || !meta) throw new Error("Sign the invoice first, then submit via Router.");
+      }
+      setRouterBusy(true);
+      await approveRouter(musd, router, inv.amount, account).catch((e) => {
+        if (/rejected|denied/i.test(e instanceof Error ? e.message : String(e))) throw e;
+      });
+      const hash = await payViaRouter(router, {
+        payer: account, id: inv.id || "no-id", amount: inv.amount, to: inv.to,
+        desc: inv.desc.slice(0, 140), deadline: meta.deadline, nonce: meta.nonce, sig: signature,
+      }, account);
+      setState({ invoices: getState().invoices.map((i) => (i.id === inv.id ? { ...i, paid: true, tx: hash } : i)) });
+      logActivity("invoice_paid", inv.amount, "MUSD", `Paid via InvoiceRouter · to ${short(inv.to)} · EIP-712 ${signature.slice(0, 12)}…`, hash, true);
+      setTx(hash);
+      setTxOnchain(true);
+      setRouterMsg(`Router tx broadcast: ${hash.slice(0, 12)}…`);
+    } catch (e) {
+      setSigErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRouterBusy(false);
     }
   };
 
@@ -142,11 +188,15 @@ function Checkout() {
                 <CreditForm targetMusd={inv.amount} cta="Mint MUSD & pay" onDone={(t) => markPaid(t, false, sig ? `EIP-712 ${sig.slice(0, 12)}…` : undefined)} />
                 <div className="mt-4 rounded-lg border p-3 text-xs">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold">EIP-712 delegation (Wave 2)</span>
+                    <span className="font-semibold">EIP-712 + InvoiceRouter (Wave 1)</span>
                     <button type="button" onClick={() => void signDelegation()} className="text-primary underline">Sign invoice</button>
                   </div>
-                  <p className="mt-1 text-muted-foreground">Typed signature authorises exactly this invoice (`pay id amount to`). Router verification is phase 3; signature is stored in the ledger note today.</p>
+                  <p className="mt-1 text-muted-foreground">Typed signature authorises exactly this invoice. With `VITE_ROUTER_ADDRESS_TESTNET` set it verifies on-chain via `payInvoice`; without it the sig is stored in the ledger note.</p>
                   {sig && <p className="mt-1 break-all font-mono text-[11px] text-success">{sig}</p>}
+                  <Btn variant="green" className="mt-2 w-full py-2" disabled={routerBusy} onClick={() => void payViaRouterFlow()}>
+                    {routerBusy ? "Submitting via Router…" : "Approve + Pay via Router"}
+                  </Btn>
+                  {routerMsg && <p className="mt-1 text-success">{routerMsg}</p>}
                   {sigErr && <p role="alert" className="mt-1 text-destructive">{sigErr}</p>}
                 </div>
               </>
