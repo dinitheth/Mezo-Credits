@@ -2,6 +2,9 @@
 
 No `npm`/`forge` needed. Contract has zero imports.
 
+Deployed (Mezo testnet 31611): `0x99A9554C090C206a3811604448E5a29CAaB00d45`
+Deploy tx: `0x631a15b33f687cbe5120f3841f3e052f3afeaeb4a1eec50bec190fad70df5338` (block 16173807). Verified as `InvoiceRouter` on `explorer.test.mezo.org`.
+
 1. Open https://remix.ethereum.org → New file `InvoiceRouter.sol` → paste `contracts/InvoiceRouter.sol`.
 2. Compile: Solidity `0.8.20`, EVM default, optimizer on.
 3. Injected Provider: connect MetaMask/Rabby → **Mezo Testnet** (chain `31611`, RPC `https://rpc.test.mezo.org`).

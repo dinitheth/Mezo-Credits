@@ -93,7 +93,7 @@ Wallet chain constants in `MEZO` (`src/lib/mezo.ts`): Mezo testnet 31611 / mainn
 | MEZO (18dp) | `VITE_MEZO_TOKEN_TESTNET` (unset = documented fallback) | `VITE_MEZO_TOKEN_MAINNET` (unset = documented fallback) |
 | Chain | 31611 `https://rpc.test.mezo.org` | 31612 |
 | Explorer | `https://explorer.test.mezo.org` | Mezo explorer |
-| InvoiceRouter | `VITE_ROUTER_ADDRESS_TESTNET` (deploy `contracts/InvoiceRouter.sol` via Remix, see `contracts/README.md`) | `VITE_ROUTER_ADDRESS_MAINNET` |
+| InvoiceRouter | `0x99A9554C090C206a3811604448E5a29CAaB00d45` (verified; override via `VITE_ROUTER_ADDRESS_TESTNET`) | `VITE_ROUTER_ADDRESS_MAINNET` |
 
 Live legs: `eth_call` MUSD/MEZO balances + block number (`OnchainPanel`), `eth_sendTransaction` MUSD transfer (Checkout wallet pay), `eth_signTypedData_v4` invoice delegation + `InvoiceRouter.payInvoice` (Checkout credit tab, needs MUSD `approve` first), `eth_getTransactionReceipt` status (`/activity`). Trove `BorrowerOperations` wiring remains phase 2.
 
