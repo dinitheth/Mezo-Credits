@@ -266,7 +266,7 @@ export async function signInvoice712(account: string, chainId: number, verifying
 // ---------------------------------------------------------------------------
 
 export function routerAddressFor(chainId: number | null): string | null {
-  if (chainId === 31611) return env("VITE_ROUTER_ADDRESS_TESTNET");
+  if (chainId === 31611) return env("VITE_ROUTER_ADDRESS_TESTNET") ?? "0x99A9554C090C206a3811604448E5a29CAaB00d45";
   if (chainId === 31612) return env("VITE_ROUTER_ADDRESS_MAINNET");
   return null;
 }
