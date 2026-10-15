@@ -17,6 +17,7 @@ Deploy tx: `0x631a15b33f687cbe5120f3841f3e052f3afeaeb4a1eec50bec190fad70df5338` 
 7. Verify: `InvoicePaid` event + MUSD `Transfer(payer → to)` on `https://explorer.test.mezo.org`.
 
 Notes:
+
 - `nonce` is `Date.now()` per checkout — replay-safe per payer.
 - `deadline` is +1h from signing.
 - Router never holds funds; it only `transferFrom`s with allowance.

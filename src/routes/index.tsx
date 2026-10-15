@@ -12,9 +12,16 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "MezoFlow — Borrow dollars against your Bitcoin" },
-      { name: "description", content: "Lock BTC, mint dollar-pegged MUSD, and settle invoices instantly with Pay-with-Credit links on Mezo." },
+      {
+        name: "description",
+        content:
+          "Lock BTC, mint dollar-pegged MUSD, and settle invoices instantly with Pay-with-Credit links on Mezo.",
+      },
       { property: "og:title", content: "MezoFlow — Borrow dollars against your Bitcoin" },
-      { property: "og:description", content: "BTC credit lines and Pay-with-Credit checkout on Mezo." },
+      {
+        property: "og:description",
+        content: "BTC credit lines and Pay-with-Credit checkout on Mezo.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -48,12 +55,11 @@ const rows: { title: string; body: ReactNode; to: "/borrow" | "/pay" | "/earn"; 
   },
 ];
 
-
 function Landing() {
   const s = useStore();
   usePriceFeed(true);
   const hasPosition = s.position.collateral > 0;
-  const perBtc = s.btcPrice / (TIERS[1]?.cr ?? 200) * 100;
+  const perBtc = (s.btcPrice / (TIERS[1]?.cr ?? 200)) * 100;
 
   return (
     <Shell>
@@ -70,7 +76,8 @@ function Landing() {
             <span className="text-primary">Spend against it.</span>
           </h1>
           <p className="mt-6 max-w-md text-lg text-muted-foreground">
-            Borrow dollars (MUSD) with your BTC as collateral, then pay any invoice with one link. You keep the
+            Borrow dollars (MUSD) with your BTC as collateral, then pay any invoice with one link.
+            You keep the
             <BtcWord text="Bitcoin." />
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
@@ -117,7 +124,8 @@ function Landing() {
             <h3 className="text-2xl font-semibold tracking-tight">{title}</h3>
             <p className="max-w-lg text-muted-foreground">{body}</p>
             <span className="inline-flex items-center gap-1 text-sm font-medium text-primary">
-              {cta} <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+              {cta}{" "}
+              <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
             </span>
           </Link>
         ))}
@@ -130,12 +138,15 @@ function Landing() {
         </h2>
         <div className="space-y-4 text-muted-foreground">
           <p>
-            Every position shows a health score, a collateral gauge and the exact BTC price where it would be
-            liquidated. Below 150% you get a warning; at {MIN_CR}% Mezo closes the Trove.
+            Every position shows a health score, a collateral gauge and the exact BTC price where it
+            would be liquidated. Below 150% you get a warning; at {MIN_CR}% Mezo closes the Trove.
           </p>
           <div className="flex gap-2">
             {TIERS.map((t) => (
-              <span key={t.cr} className="rounded-full border px-3 py-1 font-mono text-xs text-foreground">
+              <span
+                key={t.cr}
+                className="rounded-full border px-3 py-1 font-mono text-xs text-foreground"
+              >
                 {t.label} {t.cr}%
               </span>
             ))}
@@ -147,7 +158,10 @@ function Landing() {
       <section className="mt-20 flex flex-col items-start justify-between gap-6 rounded-2xl bg-primary px-8 py-10 text-primary-foreground md:flex-row md:items-center">
         <h2 className="text-2xl font-bold md:text-3xl">Grab BTC and open a line in a minute.</h2>
         <Link to="/borrow">
-          <Btn variant="ghost" className="gap-2 bg-background px-6 py-3 text-base text-foreground hover:bg-background/90">
+          <Btn
+            variant="ghost"
+            className="gap-2 bg-background px-6 py-3 text-base text-foreground hover:bg-background/90"
+          >
             Get started <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Btn>
         </Link>

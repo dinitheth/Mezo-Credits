@@ -95,7 +95,9 @@
 }
 
 @layer base {
-  * { border-color: var(--color-border); }
+  * {
+    border-color: var(--color-border);
+  }
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
@@ -105,21 +107,55 @@
   }
 }
 
-@utility bg-gold { background-image: var(--gradient-gold); }
-@utility shadow-glow { box-shadow: var(--glow); }
+@utility bg-gold {
+  background-image: var(--gradient-gold);
+}
+@utility shadow-glow {
+  box-shadow: var(--glow);
+}
 
-@keyframes orbit { from { transform: rotate(0deg) translateX(var(--r)) rotate(0deg); } to { transform: rotate(360deg) translateX(var(--r)) rotate(-360deg); } }
-@utility animate-orbit { animation: orbit 14s linear infinite; }
+@keyframes orbit {
+  from {
+    transform: rotate(0deg) translateX(var(--r)) rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg) translateX(var(--r)) rotate(-360deg);
+  }
+}
+@utility animate-orbit {
+  animation: orbit 14s linear infinite;
+}
 
 /* Coin circling AROUND an object: wide at the sides, larger in front
    (z-index 30), smaller and behind (z-index 0) on the far side. */
 @keyframes circle-around {
-  0% { transform: translateX(var(--r)) scale(1); z-index: 30; }
-  25% { transform: translateX(0) scale(1.25); z-index: 30; }
-  49.9% { z-index: 30; }
-  50% { transform: translateX(calc(var(--r) * -1)) scale(1); z-index: 0; }
-  75% { transform: translateX(0) scale(0.7); z-index: 0; }
-  99.9% { z-index: 0; }
-  100% { transform: translateX(var(--r)) scale(1); z-index: 30; }
+  0% {
+    transform: translateX(var(--r)) scale(1);
+    z-index: 30;
+  }
+  25% {
+    transform: translateX(0) scale(1.25);
+    z-index: 30;
+  }
+  49.9% {
+    z-index: 30;
+  }
+  50% {
+    transform: translateX(calc(var(--r) * -1)) scale(1);
+    z-index: 0;
+  }
+  75% {
+    transform: translateX(0) scale(0.7);
+    z-index: 0;
+  }
+  99.9% {
+    z-index: 0;
+  }
+  100% {
+    transform: translateX(var(--r)) scale(1);
+    z-index: 30;
+  }
 }
-@utility animate-circle-around { animation: circle-around 12s linear infinite; }
+@utility animate-circle-around {
+  animation: circle-around 12s linear infinite;
+}

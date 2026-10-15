@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { MEZO, useStore } from "@/lib/mezo";
-import { getBlockNumber, getMezoTokenBalance, getMusdBalance, mezoTokenAddressFor, musdAddressFor } from "@/lib/onchain";
+import {
+  getBlockNumber,
+  getMezoTokenBalance,
+  getMusdBalance,
+  mezoTokenAddressFor,
+  musdAddressFor,
+} from "@/lib/onchain";
 import { Card } from "./ui-bits";
 
 /**
@@ -50,7 +56,10 @@ export function OnchainPanel({ compact }: { compact?: boolean }) {
     return (
       <Card className={compact ? "text-sm" : ""}>
         <h2 className="font-semibold">On-chain balances</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Connect a wallet to read real MUSD / MEZO balances via <span className="font-mono">eth_call</span>.</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Connect a wallet to read real MUSD / MEZO balances via{" "}
+          <span className="font-mono">eth_call</span>.
+        </p>
       </Card>
     );
   }
@@ -60,21 +69,71 @@ export function OnchainPanel({ compact }: { compact?: boolean }) {
     <Card>
       <div className="mb-2 flex items-center justify-between gap-2">
         <h2 className="font-semibold">On-chain balances · real reads</h2>
-        <button type="button" onClick={() => void refresh()} disabled={loading} className="text-xs text-primary underline disabled:opacity-40">
+        <button
+          type="button"
+          onClick={() => void refresh()}
+          disabled={loading}
+          className="text-xs text-primary underline disabled:opacity-40"
+        >
           {loading ? "Reading…" : "Refresh"}
         </button>
       </div>
       <dl className="grid grid-cols-2 gap-3 font-mono text-sm md:grid-cols-4">
-        <div><dt className="font-sans text-xs text-muted-foreground">Chain</dt><dd>{chainId ?? "—"}{onMezo ? " · Mezo" : ""}</dd></div>
-        <div><dt className="font-sans text-xs text-muted-foreground">Block</dt><dd>{block ?? "—"}</dd></div>
-        <div><dt className="font-sans text-xs text-muted-foreground">MUSD (wallet)</dt><dd>{musd === null ? (musdAddr ? "—" : "no MUSD on this chain") : `${musd.toLocaleString("en-US", { maximumFractionDigits: 2 })}`}</dd></div>
-        <div><dt className="font-sans text-xs text-muted-foreground">MEZO (wallet)</dt><dd>{mezoTok === null ? (mezoAddr ? "—" : "set VITE_MEZO_TOKEN_*") : `${mezoTok.toLocaleString("en-US", { maximumFractionDigits: 4 })}`}</dd></div>
+        <div>
+          <dt className="font-sans text-xs text-muted-foreground">Chain</dt>
+          <dd>
+            {chainId ?? "—"}
+            {onMezo ? " · Mezo" : ""}
+          </dd>
+        </div>
+        <div>
+          <dt className="font-sans text-xs text-muted-foreground">Block</dt>
+          <dd>{block ?? "—"}</dd>
+        </div>
+        <div>
+          <dt className="font-sans text-xs text-muted-foreground">MUSD (wallet)</dt>
+          <dd>
+            {musd === null
+              ? musdAddr
+                ? "—"
+                : "no MUSD on this chain"
+              : `${musd.toLocaleString("en-US", { maximumFractionDigits: 2 })}`}
+          </dd>
+        </div>
+        <div>
+          <dt className="font-sans text-xs text-muted-foreground">MEZO (wallet)</dt>
+          <dd>
+            {mezoTok === null
+              ? mezoAddr
+                ? "—"
+                : "set VITE_MEZO_TOKEN_*"
+              : `${mezoTok.toLocaleString("en-US", { maximumFractionDigits: 4 })}`}
+          </dd>
+        </div>
       </dl>
-      {musdAddr && <p className="mt-2 break-all font-mono text-[11px] text-muted-foreground">MUSD {musdAddr}</p>}
-      {mezoAddr && <p className="break-all font-mono text-[11px] text-muted-foreground">MEZO {mezoAddr}</p>}
-      {!onMezo && <p className="mt-2 text-xs text-muted-foreground">Switch to Mezo testnet (31611) for the Wave 1 MUSD write path. Reads above are still real for the connected chain.</p>}
-      {err && <p role="alert" className="mt-2 text-xs text-destructive">{err}</p>}
-      <p className="mt-2 text-[11px] text-muted-foreground">Trove collateral/debt/pool cards remain simulated in-browser (see README); this panel + checkout transfers are the live chain legs.</p>
+      {musdAddr && (
+        <p className="mt-2 break-all font-mono text-[11px] text-muted-foreground">
+          MUSD {musdAddr}
+        </p>
+      )}
+      {mezoAddr && (
+        <p className="break-all font-mono text-[11px] text-muted-foreground">MEZO {mezoAddr}</p>
+      )}
+      {!onMezo && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Switch to Mezo testnet (31611) for the Wave 1 MUSD write path. Reads above are still real
+          for the connected chain.
+        </p>
+      )}
+      {err && (
+        <p role="alert" className="mt-2 text-xs text-destructive">
+          {err}
+        </p>
+      )}
+      <p className="mt-2 text-[11px] text-muted-foreground">
+        Trove collateral/debt/pool cards remain simulated in-browser (see README); this panel +
+        checkout transfers are the live chain legs.
+      </p>
     </Card>
   );
 }

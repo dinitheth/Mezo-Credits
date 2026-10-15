@@ -71,7 +71,8 @@ export const MIN_BORROW_MUSD = 1800;
 export const MIN_DEBT_MUSD = 2000;
 
 export const borrowingFee = (mint: number) => (mint > 0 ? mint * BORROW_FEE_RATE : 0);
-export const expectedTotalDebt = (mint: number) => (mint > 0 ? mint + borrowingFee(mint) + GAS_COMP_MUSD : 0);
+export const expectedTotalDebt = (mint: number) =>
+  mint > 0 ? mint + borrowingFee(mint) + GAS_COMP_MUSD : 0;
 
 /** Effective collateral ratio after fee + gas comp are added to debt. */
 export function effectiveCr(collateralBtc: number, mint: number, price: number) {
@@ -163,7 +164,10 @@ export async function getMusdBalance(account: string, musd: string): Promise<num
 }
 
 /** Real read: MEZO token balance. Returns null when no token is configured for the chain. */
-export async function getMezoTokenBalance(account: string, token: string | null): Promise<number | null> {
+export async function getMezoTokenBalance(
+  account: string,
+  token: string | null,
+): Promise<number | null> {
   if (!token) return null;
   const data = `0x${SEL.balanceOf}${addrToWord(account)}`;
   const raw = await ethCall(token, data);
@@ -191,7 +195,10 @@ export async function getTxReceipt(txHash: string): Promise<TxReceipt> {
   const e = provider();
   if (!e) return null;
   try {
-    const r = (await e.request({ method: "eth_getTransactionReceipt", params: [txHash] })) as TxReceipt;
+    const r = (await e.request({
+      method: "eth_getTransactionReceipt",
+      params: [txHash],
+    })) as TxReceipt;
     return r ?? null;
   } catch {
     return null;
@@ -204,14 +211,22 @@ export async function getTxReceipt(txHash: string): Promise<TxReceipt> {
  * real transaction hash. This is the on-chain leg alongside the simulated
  * Trove flows; Trove `BorrowerOperations` wiring is Wave 2 (phase 2).
  */
-export async function sendMusd(to: string, amountMusd: number | string, musd: string, from: string): Promise<string> {
+export async function sendMusd(
+  to: string,
+  amountMusd: number | string,
+  musd: string,
+  from: string,
+): Promise<string> {
   const e = provider();
   if (!e) throw new Error("No browser wallet found.");
   if (!/^0x[0-9a-fA-F]{40}$/.test(to)) throw new Error("Invalid recipient address.");
   const value = parseMUSD(amountMusd);
   if (value <= 0n) throw new Error("Amount must be above zero.");
   const data = `0x${SEL.transfer}${addrToWord(to)}${uintToWord(value)}`;
-  const hash = (await e.request({ method: "eth_sendTransaction", params: [{ from, to: musd, data }] })) as string;
+  const hash = (await e.request({
+    method: "eth_sendTransaction",
+    params: [{ from, to: musd, data }],
+  })) as string;
   return hash;
 }
 
@@ -219,7 +234,14 @@ export async function sendMusd(to: string, amountMusd: number | string, musd: st
 // EIP-712 delegated invoice signatures (Wave 2 checkout leg)
 // ---------------------------------------------------------------------------
 
-export type Invoice712 = { id: string; amount: number; to: string; desc: string; deadline: number; nonce: string };
+export type Invoice712 = {
+  id: string;
+  amount: number;
+  to: string;
+  desc: string;
+  deadline: number;
+  nonce: string;
+};
 
 export function invoiceTypedData(chainId: number, verifyingContract: string, inv: Invoice712) {
   return {
@@ -250,7 +272,12 @@ export function invoiceTypedData(chainId: number, verifyingContract: string, inv
  * set, Checkout signs against the deployed InvoiceRouter so `payInvoice`
  * verifies on-chain; otherwise the signature is stored in the ledger note.
  */
-export async function signInvoice712(account: string, chainId: number, verifyingContract: string, inv: Invoice712): Promise<string> {
+export async function signInvoice712(
+  account: string,
+  chainId: number,
+  verifyingContract: string,
+  inv: Invoice712,
+): Promise<string> {
   const e = provider();
   if (!e) throw new Error("No browser wallet found.");
   const typed = invoiceTypedData(chainId, verifyingContract, inv);
@@ -266,24 +293,41 @@ export async function signInvoice712(account: string, chainId: number, verifying
 // ---------------------------------------------------------------------------
 
 export function routerAddressFor(chainId: number | null): string | null {
-  if (chainId === 31611) return env("VITE_ROUTER_ADDRESS_TESTNET") ?? "0x99A9554C090C206a3811604448E5a29CAaB00d45";
+  if (chainId === 31611)
+    return env("VITE_ROUTER_ADDRESS_TESTNET") ?? "0x99A9554C090C206a3811604448E5a29CAaB00d45";
   if (chainId === 31612) return env("VITE_ROUTER_ADDRESS_MAINNET");
   return null;
 }
 
 const ERC20_APPROVE_ABI = [
-  { name: "approve", type: "function", stateMutability: "nonpayable", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }] },
+  {
+    name: "approve",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "spender", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ type: "bool" }],
+  },
 ] as const;
 
 const ROUTER_ABI = [
   {
-    name: "payInvoice", type: "function", stateMutability: "nonpayable",
+    name: "payInvoice",
+    type: "function",
+    stateMutability: "nonpayable",
     inputs: [
       {
-        name: "inv", type: "tuple",
+        name: "inv",
+        type: "tuple",
         components: [
-          { name: "payer", type: "address" }, { name: "id", type: "string" }, { name: "amount", type: "uint256" },
-          { name: "to", type: "address" }, { name: "desc", type: "string" }, { name: "deadline", type: "uint256" },
+          { name: "payer", type: "address" },
+          { name: "id", type: "string" },
+          { name: "amount", type: "uint256" },
+          { name: "to", type: "address" },
+          { name: "desc", type: "string" },
+          { name: "deadline", type: "uint256" },
           { name: "nonce", type: "string" },
         ],
       },
@@ -294,27 +338,64 @@ const ROUTER_ABI = [
 ] as const;
 
 /** Approve the router to pull MUSD (one-time per amount). Returns tx hash. */
-export async function approveRouter(musd: string, router: string, amountMusd: number | string, from: string): Promise<string> {
-  const { encodeFunctionData } = await import("viem");
-  const data = encodeFunctionData({ abi: ERC20_APPROVE_ABI, functionName: "approve", args: [router as `0x${string}`, parseMUSD(amountMusd)] });
-  const e = provider();
-  if (!e) throw new Error("No browser wallet found.");
-  return (await e.request({ method: "eth_sendTransaction", params: [{ from, to: musd, data }] })) as string;
-}
-
-export type RouterPayment = { payer: string; id: string; amount: number | string; to: string; desc: string; deadline: number; nonce: string; sig: string };
-
-/** Submit a signed invoice to `InvoiceRouter.payInvoice`. Returns tx hash. */
-export async function payViaRouter(router: string, p: RouterPayment, from: string): Promise<string> {
+export async function approveRouter(
+  musd: string,
+  router: string,
+  amountMusd: number | string,
+  from: string,
+): Promise<string> {
   const { encodeFunctionData } = await import("viem");
   const data = encodeFunctionData({
-    abi: ROUTER_ABI, functionName: "payInvoice",
-    args: [{
-      payer: p.payer as `0x${string}`, id: p.id, amount: parseMUSD(p.amount),
-      to: p.to as `0x${string}`, desc: p.desc, deadline: BigInt(p.deadline), nonce: p.nonce,
-    }, p.sig as `0x${string}`],
+    abi: ERC20_APPROVE_ABI,
+    functionName: "approve",
+    args: [router as `0x${string}`, parseMUSD(amountMusd)],
   });
   const e = provider();
   if (!e) throw new Error("No browser wallet found.");
-  return (await e.request({ method: "eth_sendTransaction", params: [{ from, to: router, data }] })) as string;
+  return (await e.request({
+    method: "eth_sendTransaction",
+    params: [{ from, to: musd, data }],
+  })) as string;
+}
+
+export type RouterPayment = {
+  payer: string;
+  id: string;
+  amount: number | string;
+  to: string;
+  desc: string;
+  deadline: number;
+  nonce: string;
+  sig: string;
+};
+
+/** Submit a signed invoice to `InvoiceRouter.payInvoice`. Returns tx hash. */
+export async function payViaRouter(
+  router: string,
+  p: RouterPayment,
+  from: string,
+): Promise<string> {
+  const { encodeFunctionData } = await import("viem");
+  const data = encodeFunctionData({
+    abi: ROUTER_ABI,
+    functionName: "payInvoice",
+    args: [
+      {
+        payer: p.payer as `0x${string}`,
+        id: p.id,
+        amount: parseMUSD(p.amount),
+        to: p.to as `0x${string}`,
+        desc: p.desc,
+        deadline: BigInt(p.deadline),
+        nonce: p.nonce,
+      },
+      p.sig as `0x${string}`,
+    ],
+  });
+  const e = provider();
+  if (!e) throw new Error("No browser wallet found.");
+  return (await e.request({
+    method: "eth_sendTransaction",
+    params: [{ from, to: router, data }],
+  })) as string;
 }

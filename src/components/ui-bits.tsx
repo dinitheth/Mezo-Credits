@@ -5,7 +5,11 @@ export function Card({ className, children }: { className?: string; children: Re
   return <div className={cn("rounded-xl border bg-card p-5", className)}>{children}</div>;
 }
 
-export function Btn({ variant = "gold", className, ...p }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "gold" | "ghost" | "green" }) {
+export function Btn({
+  variant = "gold",
+  className,
+  ...p
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "gold" | "ghost" | "green" }) {
   return (
     <button
       {...p}
@@ -51,14 +55,33 @@ export function Tip({ text }: { text: string }) {
   );
 }
 
-export function Stat({ label, value, tip, tone }: { label: string; value: ReactNode; tip?: string; tone?: "gold" | "green" | "red" }) {
+export function Stat({
+  label,
+  value,
+  tip,
+  tone,
+}: {
+  label: string;
+  value: ReactNode;
+  tip?: string;
+  tone?: "gold" | "green" | "red";
+}) {
   return (
     <div>
       <div className="flex items-center text-xs uppercase tracking-wider text-muted-foreground">
         {label}
         {tip && <Tip text={tip} />}
       </div>
-      <div className={cn("mt-1 font-mono text-xl", tone === "gold" && "text-primary", tone === "green" && "text-success", tone === "red" && "text-destructive")}>{value}</div>
+      <div
+        className={cn(
+          "mt-1 font-mono text-xl",
+          tone === "gold" && "text-primary",
+          tone === "green" && "text-success",
+          tone === "red" && "text-destructive",
+        )}
+      >
+        {value}
+      </div>
     </div>
   );
 }
@@ -66,36 +89,73 @@ export function Stat({ label, value, tip, tone }: { label: string; value: ReactN
 export function Gauge({ cr }: { cr: number }) {
   // map 100% .. 300% onto bar
   const pct = isFinite(cr) ? Math.max(0, Math.min(100, ((cr - 100) / 200) * 100)) : 100;
-  const tone = !isFinite(cr) || cr >= 200 ? "bg-success" : cr >= 150 ? "bg-warning" : "bg-destructive";
+  const tone =
+    !isFinite(cr) || cr >= 200 ? "bg-success" : cr >= 150 ? "bg-warning" : "bg-destructive";
   return (
     <div>
-      <div className="relative h-3 overflow-hidden rounded-full bg-muted" role="meter" aria-valuemin={100} aria-valuemax={300} aria-valuenow={isFinite(cr) ? Math.round(cr) : 300} aria-label="Collateral ratio">
-        <div className={cn("h-full rounded-full transition-all", tone)} style={{ width: `${pct}%` }} />
-        <div className="absolute inset-y-0 w-0.5 bg-destructive" style={{ left: "5%" }} title="110% liquidation" />
+      <div
+        className="relative h-3 overflow-hidden rounded-full bg-muted"
+        role="meter"
+        aria-valuemin={100}
+        aria-valuemax={300}
+        aria-valuenow={isFinite(cr) ? Math.round(cr) : 300}
+        aria-label="Collateral ratio"
+      >
+        <div
+          className={cn("h-full rounded-full transition-all", tone)}
+          style={{ width: `${pct}%` }}
+        />
+        <div
+          className="absolute inset-y-0 w-0.5 bg-destructive"
+          style={{ left: "5%" }}
+          title="110% liquidation"
+        />
       </div>
       <div className="mt-1 flex justify-between font-mono text-[10px] text-muted-foreground">
-        <span>110% liq.</span><span>150%</span><span>200%</span><span>250%</span><span>300%+</span>
+        <span>110% liq.</span>
+        <span>150%</span>
+        <span>200%</span>
+        <span>250%</span>
+        <span>300%+</span>
       </div>
     </div>
   );
 }
 
-export function Field({ label, tip, children }: { label: string; tip?: string; children: ReactNode }) {
+export function Field({
+  label,
+  tip,
+  children,
+}: {
+  label: string;
+  tip?: string;
+  children: ReactNode;
+}) {
   return (
     <label className="block">
-      <span className="mb-1.5 flex items-center text-sm text-muted-foreground">{label}{tip && <Tip text={tip} />}</span>
+      <span className="mb-1.5 flex items-center text-sm text-muted-foreground">
+        {label}
+        {tip && <Tip text={tip} />}
+      </span>
       {children}
     </label>
   );
 }
 
-export const inputCls = "w-full rounded-lg border bg-input/30 px-3 py-2.5 font-mono text-foreground outline-none focus:border-ring";
+export const inputCls =
+  "w-full rounded-lg border bg-input/30 px-3 py-2.5 font-mono text-foreground outline-none focus:border-ring";
 
 /** Keeps only digits and a single decimal point (max `dp` decimals). */
 export function cleanNum(v: string, dp = 8) {
   let s = v.replace(/,/g, ".").replace(/[^0-9.]/g, "");
   const i = s.indexOf(".");
-  if (i >= 0) s = s.slice(0, i + 1) + s.slice(i + 1).replace(/\./g, "").slice(0, dp);
+  if (i >= 0)
+    s =
+      s.slice(0, i + 1) +
+      s
+        .slice(i + 1)
+        .replace(/\./g, "")
+        .slice(0, dp);
   if (s.startsWith(".")) s = "0" + s;
   return s.replace(/^0+(?=\d)/, "");
 }
