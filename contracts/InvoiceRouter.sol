@@ -3,16 +3,23 @@ pragma solidity ^0.8.20;
 
 /// @title MezoFlow InvoiceRouter (Wave 1)
 /// @notice Settles MUSD invoices with an EIP-712 delegation.
-///  Payer signs Invoice(id,amount,to,desc,deadline,nonce) off-chain;
-///  anyone can submit it, router verifies the signature, pulls MUSD via
-///  transferFrom(payer -> to) and emits InvoicePaid.
-///  Payer must `approve(router, amount)` on MUSD first.
-///  No imports so it deploys straight from Remix on Mezo testnet (31611).
+///  Struct-based params keep the stack shallow so stock Remix (0.8.20 +
+///  optimizer, no viaIR) compiles cleanly.
 interface IERC20 {
   function transferFrom(address from, address to, uint256 value) external returns (bool);
 }
 
 contract InvoiceRouter {
+  struct Invoice {
+    address payer;
+    string id;
+    uint256 amount;
+    address to;
+    string desc;
+    uint256 deadline;
+    string nonce;
+  }
+
   IERC20 public immutable musd;
 
   bytes32 private constant DOMAIN_TYPEHASH =
@@ -22,8 +29,8 @@ contract InvoiceRouter {
   bytes32 private immutable CACHED_DOMAIN_SEPARATOR;
   uint256 private immutable CACHED_CHAIN_ID;
 
-  /// payer => nonceHash => used (replay protection)
-  mapping(address => mapping(bytes32 => bool)) public nonceUsed;
+  /// payer => nonce string => used (replay protection, no extra hash local)
+  mapping(address => mapping(string => bool)) public nonceUsed;
 
   event InvoicePaid(
     string indexed id,
@@ -60,14 +67,7 @@ contract InvoiceRouter {
     );
   }
 
-  function hashInvoice(
-    string calldata id,
-    uint256 amount,
-    address to,
-    string calldata desc,
-    uint256 deadline,
-    string calldata nonce
-  ) public view returns (bytes32) {
+  function hashInvoice(Invoice calldata inv) public view returns (bytes32) {
     return keccak256(
       abi.encodePacked(
         "\x19\x01",
@@ -75,12 +75,12 @@ contract InvoiceRouter {
         keccak256(
           abi.encode(
             INVOICE_TYPEHASH,
-            keccak256(bytes(id)),
-            amount,
-            to,
-            keccak256(bytes(desc)),
-            deadline,
-            keccak256(bytes(nonce))
+            keccak256(bytes(inv.id)),
+            inv.amount,
+            inv.to,
+            keccak256(bytes(inv.desc)),
+            inv.deadline,
+            keccak256(bytes(inv.nonce))
           )
         )
       )
@@ -97,43 +97,22 @@ contract InvoiceRouter {
     if (v < 27) v += 27;
   }
 
-  /// @dev Payer signs off-chain; anyone (merchant/relayer/payer) can submit.
-  function payInvoice(
-    address payer,
-    string calldata id,
-    uint256 amount,
-    address to,
-    string calldata desc,
-    uint256 deadline,
-    string calldata nonce,
-    bytes calldata sig
-  ) external {
-    if (block.timestamp > deadline) revert Expired();
-    _verifyAndConsume(payer, id, amount, to, desc, deadline, nonce, sig);
-    bool ok = musd.transferFrom(payer, to, amount);
-    if (!ok) revert TransferFailed();
-
-    emit InvoicePaid(id, payer, to, amount, desc);
+  function _verify(Invoice calldata inv, bytes calldata sig) internal view {
+    (uint8 v, bytes32 r, bytes32 s) = _splitSig(sig);
+    address signer = ecrecover(hashInvoice(inv), v, r, s);
+    if (signer == address(0) || signer != inv.payer) revert BadSignature();
   }
 
-  function _verifyAndConsume(
-    address payer,
-    string calldata id,
-    uint256 amount,
-    address to,
-    string calldata desc,
-    uint256 deadline,
-    string calldata nonce,
-    bytes calldata sig
-  ) internal {
-    bytes32 nkey = keccak256(bytes(nonce));
-    if (nonceUsed[payer][nkey]) revert NonceUsed();
+  /// @dev Payer signs off-chain; anyone (merchant/relayer/payer) can submit.
+  function payInvoice(Invoice calldata inv, bytes calldata sig) external {
+    if (block.timestamp > inv.deadline) revert Expired();
+    if (nonceUsed[inv.payer][inv.nonce]) revert NonceUsed();
+    _verify(inv, sig);
+    nonceUsed[inv.payer][inv.nonce] = true;
 
-    bytes32 digest = hashInvoice(id, amount, to, desc, deadline, nonce);
-    (uint8 v, bytes32 r, bytes32 s) = _splitSig(sig);
-    address signer = ecrecover(digest, v, r, s);
-    if (signer == address(0) || signer != payer) revert BadSignature();
+    bool ok = musd.transferFrom(inv.payer, inv.to, inv.amount);
+    if (!ok) revert TransferFailed();
 
-    nonceUsed[payer][nkey] = true;
+    emit InvoicePaid(inv.id, inv.payer, inv.to, inv.amount, inv.desc);
   }
 }

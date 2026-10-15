@@ -279,9 +279,15 @@ const ROUTER_ABI = [
   {
     name: "payInvoice", type: "function", stateMutability: "nonpayable",
     inputs: [
-      { name: "payer", type: "address" }, { name: "id", type: "string" }, { name: "amount", type: "uint256" },
-      { name: "to", type: "address" }, { name: "desc", type: "string" }, { name: "deadline", type: "uint256" },
-      { name: "nonce", type: "string" }, { name: "sig", type: "bytes" },
+      {
+        name: "inv", type: "tuple",
+        components: [
+          { name: "payer", type: "address" }, { name: "id", type: "string" }, { name: "amount", type: "uint256" },
+          { name: "to", type: "address" }, { name: "desc", type: "string" }, { name: "deadline", type: "uint256" },
+          { name: "nonce", type: "string" },
+        ],
+      },
+      { name: "sig", type: "bytes" },
     ],
     outputs: [],
   },
@@ -303,7 +309,10 @@ export async function payViaRouter(router: string, p: RouterPayment, from: strin
   const { encodeFunctionData } = await import("viem");
   const data = encodeFunctionData({
     abi: ROUTER_ABI, functionName: "payInvoice",
-    args: [p.payer as `0x${string}`, p.id, parseMUSD(p.amount), p.to as `0x${string}`, p.desc, BigInt(p.deadline), p.nonce, p.sig as `0x${string}`],
+    args: [{
+      payer: p.payer as `0x${string}`, id: p.id, amount: parseMUSD(p.amount),
+      to: p.to as `0x${string}`, desc: p.desc, deadline: BigInt(p.deadline), nonce: p.nonce,
+    }, p.sig as `0x${string}`],
   });
   const e = provider();
   if (!e) throw new Error("No browser wallet found.");
