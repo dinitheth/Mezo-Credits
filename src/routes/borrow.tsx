@@ -53,7 +53,9 @@ function Borrow() {
       const want = parseMUSD(info.amount.toFixed(2));
       if (want > pos.poolBalance)
         throw new Error(
-          `The pool holds ${Number(pos.poolBalance) / 1e18} MUSD — less than this loan. Try a smaller amount.`,
+          pos.poolBalance === 0n
+            ? "The pool is empty. Put MUSD in on the Grow page first, then borrow."
+            : `The pool holds ${Number(pos.poolBalance) / 1e18} MUSD — less than this loan. Try a smaller amount.`,
         );
       if (pos.price === 0n) {
         if (pos.owner.toLowerCase() !== s.account.toLowerCase())
