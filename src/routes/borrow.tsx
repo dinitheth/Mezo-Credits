@@ -5,7 +5,7 @@ import { BtcWord } from "@/components/BitcoinMark";
 import { CreditForm } from "@/components/CreditForm";
 import { OnchainPanel } from "@/components/OnchainPanel";
 import { Btn, Card } from "@/components/ui-bits";
-import { MEZO, logActivity, num, useStore } from "@/lib/mezo";
+import { logActivity, num, useStore } from "@/lib/mezo";
 import {
   getVaultPosition,
   parseMUSD,
@@ -128,19 +128,6 @@ function Borrow() {
             </div>
           ) : null}
           <CreditForm onBorrow={vault ? borrow : undefined} borrowing={busy} />
-          {!vault ? null : (
-            <p className="mt-3 break-all text-center font-mono text-[11px] text-muted-foreground">
-              Pool contract {vault} ·{" "}
-              <a
-                className="underline"
-                href={`${MEZO.explorer}/address/${vault}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                check it on Mezo
-              </a>
-            </p>
-          )}
         </Card>
       </div>
       <div className="mt-4">

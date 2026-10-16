@@ -1,4 +1,3 @@
-import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Btn, Field, Gauge, Stat, Tip, cleanNum, inputCls } from "./ui-bits";
 import { MIN_CR, TIERS, liqPrice, num, usd, useStore } from "@/lib/mezo";
@@ -109,19 +108,6 @@ export function CreditForm({
               {borrowing ? "Borrowing…" : `Borrow ${num(power, 2)} MUSD`}
             </Btn>
           )}
-          <Link
-            to="/pay"
-            search={{ amount: Number(power.toFixed(2)), desc: "Loan plan" }}
-            className="mt-3 inline-block"
-          >
-            <span className="inline-flex items-center justify-center gap-2 rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold shadow-glow">
-              Ask for this amount
-            </span>
-          </Link>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Borrow locks your Bitcoin here and sends MUSD to you. Asking opens Get paid with the
-            amount filled in.
-          </p>
         </div>
       )}
     </div>
