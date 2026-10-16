@@ -54,7 +54,7 @@ function Borrow() {
       if (want > pos.poolBalance)
         throw new Error(
           pos.poolBalance === 0n
-            ? "The pool is empty. Put MUSD in on the Grow page first, then borrow."
+            ? "The pool is empty, so there is nothing to borrow yet. Seed it once: borrow test MUSD on Mezo's test site, put it in on the Grow page, then borrow here."
             : `The pool holds ${Number(pos.poolBalance) / 1e18} MUSD — less than this loan. Try a smaller amount.`,
         );
       if (pos.price === 0n) {
