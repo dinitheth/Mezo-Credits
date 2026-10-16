@@ -26,9 +26,10 @@ Every payment runs through your wallet. MezoFlow never moves money by itself.
 
 ## Borrowing
 
-Mezo's loan contracts are not published for apps yet, so loans open in the
-Mezo app. This app plans the loan (live prices, safety math) and handles getting
-paid afterwards.
+Our own pool contract holds the money. Lenders put MUSD in, borrowers lock
+Bitcoin and borrow at 250/200/150% safety. Under 110% anyone can close a loan:
+pay what it owes, keep its Bitcoin. Loans cost 1% per year, counted every
+second, paid to lenders. Deploys in Remix — see `contracts/README.md`.
 
 ## Money addresses (Mezo test network)
 
@@ -36,6 +37,7 @@ paid afterwards.
 | ---------------- | ----------------------------------------------------------------------------------- |
 | MUSD             | `0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503`                                        |
 | Payment contract | `0x99A9554C090C206a3811604448E5a29CAaB00d45` (first deployed version)               |
+| Lending pool     | `VITE_VAULT_ADDRESS_TESTNET` (deploy `contracts/FlowVault.sol`)                     |
 | Network          | Chain 31611, `https://rpc.test.mezo.org`, explorer `https://explorer.test.mezo.org` |
 
 Main network MUSD: `0xdD468A1DDc392dcdbEf6db6e34E89AA338F9F186`.

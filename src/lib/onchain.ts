@@ -1,13 +1,7 @@
 /**
- * On-chain integration layer for the Mezo Buildathon (Wave 1 + Wave 2).
- *
- * Display copy lives in routes/components. Wallet chain constants live in
- * `src/lib/mezo.ts` (`MEZO`). Token/fee constants live here so presentation
- * changes never switch RPC endpoints (AGENTS.md).
- *
- * Everything is dependency-free EIP-1193 (`window.ethereum`) so no new
- * packages are required. All helpers are SSR-safe (return null/throw a clear
- * error when no wallet is present).
+ * On-chain layer. Wallet chain constants live in `src/lib/mezo.ts` (`MEZO`).
+ * Token and contract addresses live here so wording changes never switch
+ * networks. Reads use the wallet (`eth_call`); writes open the wallet.
  */
 
 export const MUSD_TOKEN = {
@@ -19,10 +13,8 @@ export const MUSD_TOKEN = {
 } as const;
 
 /**
- * MEZO native-token addresses.
- * Mainnet/testnet deployments were not published in the Mezo docs at the time
- * of Wave 1. Values resolve from `VITE_MEZO_TOKEN_*` when set, otherwise null
- * and the UI falls back to documented-simulated copy without breaking.
+ * MEZO coin addresses. Values resolve from `VITE_MEZO_TOKEN_*` when set,
+ * otherwise empty and the balance simply shows — .
  */
 const env = (k: string): string | null => {
   try {
@@ -401,3 +393,249 @@ export async function payViaRouter(
     params: [{ from, to: router, data }],
   })) as string;
 }
+
+// ---------------------------------------------------------------------------
+// FlowVault — our own lending pool (`contracts/FlowVault.sol`)
+// ---------------------------------------------------------------------------
+
+export function vaultAddressFor(chainId: number | null): string | null {
+  if (chainId === 31611) return env("VITE_VAULT_ADDRESS_TESTNET");
+  if (chainId === 31612) return env("VITE_VAULT_ADDRESS_MAINNET");
+  return null;
+}
+
+const VAULT_ABI = [
+  {
+    name: "loans",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "address" }],
+    outputs: [
+      { name: "backing", type: "uint256" },
+      { name: "owed", type: "uint256" },
+      { name: "tier", type: "uint256" },
+      { name: "updated", type: "uint256" },
+    ],
+  },
+  {
+    name: "shares",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "address" }],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    name: "owedOf",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "who", type: "address" }],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    name: "backingRatio",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "who", type: "address" }],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    name: "poolOf",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "who", type: "address" }],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    name: "owner",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address" }],
+  },
+  {
+    name: "btcPrice",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    name: "poolBalance",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    name: "totalShares",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    name: "lend",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "amount", type: "uint256" }],
+    outputs: [],
+  },
+  {
+    name: "unlend",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "n", type: "uint256" }],
+    outputs: [],
+  },
+  {
+    name: "openLoan",
+    type: "function",
+    stateMutability: "payable",
+    inputs: [
+      { name: "amount", type: "uint256" },
+      { name: "tier", type: "uint256" },
+    ],
+    outputs: [],
+  },
+  {
+    name: "addBacking",
+    type: "function",
+    stateMutability: "payable",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    name: "repay",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "amount", type: "uint256" }],
+    outputs: [],
+  },
+  {
+    name: "takeBacking",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "backing", type: "uint256" }],
+    outputs: [],
+  },
+  {
+    name: "closeLoan",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "who", type: "address" }],
+    outputs: [],
+  },
+  {
+    name: "setPrice",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "price", type: "uint256" }],
+    outputs: [],
+  },
+] as const;
+
+async function vaultCall<T>(vault: string, functionName: string, args: unknown[] = []): Promise<T> {
+  const { encodeFunctionData, decodeFunctionResult } = await import("viem");
+  const data = encodeFunctionData({
+    abi: VAULT_ABI,
+    functionName: functionName as "loans",
+    args: args as never[],
+  });
+  const raw = await ethCall(vault, data);
+  return decodeFunctionResult({
+    abi: VAULT_ABI,
+    functionName: functionName as "loans",
+    data: raw as `0x${string}`,
+  }) as T;
+}
+
+async function vaultSend(
+  vault: string,
+  from: string,
+  functionName:
+    | "lend"
+    | "unlend"
+    | "openLoan"
+    | "addBacking"
+    | "repay"
+    | "takeBacking"
+    | "closeLoan"
+    | "setPrice",
+  args: unknown[],
+  value?: bigint,
+): Promise<string> {
+  const { encodeFunctionData } = await import("viem");
+  const data = encodeFunctionData({ abi: VAULT_ABI, functionName, args: args as never[] });
+  const e = provider();
+  if (!e) throw new Error("No browser wallet found.");
+  const tx: { from: string; to: string; data: string; value?: string } = { from, to: vault, data };
+  if (value !== undefined) tx.value = `0x${value.toString(16)}`;
+  return (await e.request({ method: "eth_sendTransaction", params: [tx] })) as string;
+}
+
+export type VaultLoan = {
+  backing: bigint;
+  owed: bigint;
+  liveOwed: bigint;
+  ratio: bigint;
+  tier: number;
+};
+
+/** Live loan + pool position for one wallet. Amounts are smallest units. */
+export async function getVaultPosition(
+  vault: string,
+  who: string,
+): Promise<{
+  loan: VaultLoan;
+  poolValue: bigint;
+  shares: bigint;
+  totalShares: bigint;
+  poolBalance: bigint;
+  price: bigint;
+  owner: string;
+}> {
+  const [loan, liveOwed, ratio, shares, poolValue, poolBalance, totalShares, price, owner] =
+    await Promise.all([
+      vaultCall<[bigint, bigint, bigint, bigint]>(vault, "loans", [who]),
+      vaultCall<bigint>(vault, "owedOf", [who]),
+      vaultCall<bigint>(vault, "backingRatio", [who]),
+      vaultCall<bigint>(vault, "shares", [who]),
+      vaultCall<bigint>(vault, "poolOf", [who]),
+      vaultCall<bigint>(vault, "poolBalance", []),
+      vaultCall<bigint>(vault, "totalShares", []),
+      vaultCall<bigint>(vault, "btcPrice", []),
+      vaultCall<string>(vault, "owner", []),
+    ]);
+  return {
+    loan: { backing: loan[0], owed: loan[1], liveOwed, ratio, tier: Number(loan[2]) },
+    poolValue,
+    shares,
+    totalShares,
+    poolBalance,
+    price,
+    owner,
+  };
+}
+
+export const vaultLend = (vault: string, from: string, amount: number | string) =>
+  vaultSend(vault, from, "lend", [parseMUSD(amount)]);
+export const vaultUnlend = (vault: string, from: string, shares: bigint) =>
+  vaultSend(vault, from, "unlend", [shares]);
+export const vaultOpenLoan = (
+  vault: string,
+  from: string,
+  amount: number | string,
+  tier: number,
+  btc: number | string,
+) => vaultSend(vault, from, "openLoan", [parseMUSD(amount), BigInt(tier)], parseMUSD(btc));
+export const vaultAddBacking = (vault: string, from: string, btc: number | string) =>
+  vaultSend(vault, from, "addBacking", [], parseMUSD(btc));
+export const vaultRepay = (vault: string, from: string, amount: number | string) =>
+  vaultSend(vault, from, "repay", [parseMUSD(amount)]);
+export const vaultTakeBacking = (vault: string, from: string, btc: number | string) =>
+  vaultSend(vault, from, "takeBacking", [parseMUSD(btc)]);
+export const vaultCloseLoan = (vault: string, from: string, who: string) =>
+  vaultSend(vault, from, "closeLoan", [who]);
+export const vaultSetPrice = (vault: string, from: string, usdPrice: number) =>
+  vaultSend(vault, from, "setPrice", [parseMUSD(usdPrice)]);
+export const vaultOwner = (vault: string) => vaultCall<string>(vault, "owner", []);

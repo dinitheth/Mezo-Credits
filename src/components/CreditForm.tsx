@@ -1,11 +1,17 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Field, Gauge, Stat, Tip, cleanNum, inputCls } from "./ui-bits";
-import { MIN_CR, TIERS, crOf, liqPrice, num, usd, useStore } from "@/lib/mezo";
+import { Btn, Field, Gauge, Stat, Tip, cleanNum, inputCls } from "./ui-bits";
+import { MIN_CR, TIERS, liqPrice, num, usd, useStore } from "@/lib/mezo";
 import { cn } from "@/lib/utils";
 
 /** Borrowing planner. Math only — real borrowing happens in the Mezo app. */
-export function CreditForm() {
+export function CreditForm({
+  onBorrow,
+  borrowing,
+}: {
+  onBorrow?: ((info: { btc: number; amount: number; tier: number }) => void) | undefined;
+  borrowing?: boolean | undefined;
+}) {
   const s = useStore();
   const [tier, setTier] = useState<(typeof TIERS)[number]>(TIERS[1]);
   const [btcIn, setBtcIn] = useState("0.05");
@@ -13,7 +19,6 @@ export function CreditForm() {
   const price = s.btcPrice;
 
   const power = price > 0 ? (btc * price * 100) / tier.cr : 0;
-  const cr = crOf(btc, power, price);
   const lp = liqPrice(btc, power);
 
   return (
@@ -95,6 +100,15 @@ export function CreditForm() {
         <div className="rounded-lg border border-primary/40 bg-primary/5 p-4 text-center">
           <p className="text-sm text-muted-foreground">Your number</p>
           <p className="font-mono text-2xl text-success">{num(power, 2)} MUSD</p>
+          {onBorrow && (
+            <Btn
+              className="mt-3 w-full py-3"
+              disabled={borrowing || btc <= 0}
+              onClick={() => onBorrow({ btc, amount: power, tier: tier.cr })}
+            >
+              {borrowing ? "Borrowing…" : `Borrow ${num(power, 2)} MUSD`}
+            </Btn>
+          )}
           <Link
             to="/pay"
             search={{ amount: Number(power.toFixed(2)), desc: "Loan plan" }}
@@ -105,7 +119,8 @@ export function CreditForm() {
             </span>
           </Link>
           <p className="mt-2 text-xs text-muted-foreground">
-            Opens Get paid with the amount filled in. Send the link to get paid.
+            Borrow locks your Bitcoin here and sends MUSD to you. Asking opens Get paid with the
+            amount filled in.
           </p>
         </div>
       )}
