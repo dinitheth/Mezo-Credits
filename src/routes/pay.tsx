@@ -1,11 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { z } from "zod";
 import { Shell } from "@/components/Shell";
 import { Btn, Card, Field, cleanNum, inputCls } from "@/components/ui-bits";
 import { InvoiceQR } from "@/components/InvoiceQR";
 import { getState, num, setState, short, useStore } from "@/lib/mezo";
 
 export const Route = createFileRoute("/pay")({
+  validateSearch: z.object({
+    amount: z.coerce.number().optional(),
+    desc: z.string().optional(),
+  }),
   head: () => ({
     meta: [
       { title: "Ask for money — MezoFlow" },
@@ -27,8 +32,11 @@ export const Route = createFileRoute("/pay")({
 
 function Pay() {
   const s = useStore();
-  const [amount, setAmount] = useState("250");
-  const [desc, setDesc] = useState("Design work — October");
+  const search = Route.useSearch();
+  const startAmount = search.amount && search.amount > 0 ? String(search.amount) : "250";
+  const startDesc = search.desc || "Design work — October";
+  const [amount, setAmount] = useState(startAmount);
+  const [desc, setDesc] = useState(startDesc);
   const [to, setTo] = useState("");
   const [copied, setCopied] = useState("");
   const valid = Number(amount) > 0 && /^0x[0-9a-fA-F]{40}$/.test(to || s.account || "");

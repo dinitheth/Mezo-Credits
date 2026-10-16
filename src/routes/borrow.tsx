@@ -1,9 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { Shell } from "@/components/Shell";
 import { BtcWord } from "@/components/BitcoinMark";
 import { CreditForm } from "@/components/CreditForm";
 import { OnchainPanel } from "@/components/OnchainPanel";
-import { Btn, Card } from "@/components/ui-bits";
+import { Card } from "@/components/ui-bits";
 
 export const Route = createFileRoute("/borrow")({
   head: () => ({
@@ -35,25 +35,20 @@ function Borrow() {
             See what your Bitcoin could borrow in MUSD, Mezo&apos;s
             <BtcWord text="Bitcoin-backed" /> dollar. Then put MUSD to work right here.
           </p>
-          <ul className="mt-6 space-y-3 text-sm text-muted-foreground">
+          <ol className="mt-6 space-y-3 text-sm text-muted-foreground">
             <li>
-              <b className="text-foreground">Below 110% the loan closes.</b> Stay well above it.
+              <b className="text-foreground">1. Type your Bitcoin.</b> The live price fills in by
+              itself.
             </li>
             <li>
-              <b className="text-foreground">Fixed rate.</b> Mezo locks your rate when you borrow.
+              <b className="text-foreground">2. Pick a safety level.</b> Higher means less to
+              borrow, more room if prices fall.
             </li>
             <li>
-              <b className="text-foreground">Minimum 1,800 MUSD</b> per loan.
+              <b className="text-foreground">3. Use the number.</b> The green box turns your plan
+              into a payment link.
             </li>
-          </ul>
-          <div className="mt-6 flex flex-wrap gap-2">
-            <Link to="/pay">
-              <Btn>Send a payment link</Btn>
-            </Link>
-            <Link to="/earn">
-              <Btn variant="ghost">Grow savings</Btn>
-            </Link>
-          </div>
+          </ol>
         </div>
         <Card className="lg:col-span-3">
           <CreditForm />

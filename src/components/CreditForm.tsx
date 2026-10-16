@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Field, Gauge, Stat, Tip, cleanNum, inputCls } from "./ui-bits";
 import { MIN_CR, TIERS, crOf, liqPrice, num, usd, useStore } from "@/lib/mezo";
@@ -89,6 +90,25 @@ export function CreditForm() {
         Mezo asks for at least 1,800 MUSD per loan. When you have MUSD, send it from Get paid or
         watch it grow under Grow.
       </p>
+
+      {power > 0 && price > 0 && (
+        <div className="rounded-lg border border-primary/40 bg-primary/5 p-4 text-center">
+          <p className="text-sm text-muted-foreground">Your number</p>
+          <p className="font-mono text-2xl text-success">{num(power, 2)} MUSD</p>
+          <Link
+            to="/pay"
+            search={{ amount: Number(power.toFixed(2)), desc: "Loan plan" }}
+            className="mt-3 inline-block"
+          >
+            <span className="inline-flex items-center justify-center gap-2 rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold shadow-glow">
+              Ask for this amount
+            </span>
+          </Link>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Opens Get paid with the amount filled in. Send the link to get paid.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
