@@ -19,7 +19,8 @@ export function InvoiceQR({
   const s = useStore();
   const wrap = useRef<HTMLDivElement>(null);
   const [note, setNote] = useState("");
-  const btc = amount / s.btcPrice;
+  const price = s.priceLive && s.btcPrice > 0 ? s.btcPrice : 0;
+  const btc = price > 0 ? amount / price : 0;
 
   const download = () => {
     const c = wrap.current?.querySelector("canvas");
@@ -61,7 +62,7 @@ export function InvoiceQR({
             size={compact ? 128 : 176}
             marginSize={1}
             level="M"
-            aria-label="Invoice QR code"
+            aria-label="Payment code"
             role="img"
           />
         </div>
@@ -69,16 +70,22 @@ export function InvoiceQR({
       <div className="flex-1 space-y-2 text-center sm:text-left">
         <div className="font-mono text-sm">
           <span className="text-success">{num(amount, 2)} MUSD</span>{" "}
-          <span className="text-muted-foreground">≈</span>{" "}
-          <span className="text-primary">{num(btc, 8)} BTC</span>
+          {price > 0 && (
+            <>
+              <span className="text-muted-foreground">≈</span>{" "}
+              <span className="text-primary">{num(btc, 8)} BTC</span>
+            </>
+          )}
         </div>
-        <div className="font-mono text-xs text-muted-foreground">
-          {sats(btc)} sats at BTC {num(s.btcPrice, 0)} USD
-        </div>
+        {price > 0 && (
+          <div className="font-mono text-xs text-muted-foreground">
+            {sats(btc)} sats at Bitcoin {num(price, 0)} dollars
+          </div>
+        )}
         <div className="flex flex-wrap justify-center gap-2 sm:justify-start">
           <Btn variant="ghost" className="py-1.5" onClick={download}>
             <Download className="h-4 w-4" aria-hidden="true" />
-            Download QR
+            Save code
           </Btn>
           <Btn variant="ghost" className="py-1.5" onClick={share}>
             <Share2 className="h-4 w-4" aria-hidden="true" />

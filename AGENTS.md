@@ -13,5 +13,5 @@
 
 - Keep MezoFlow's app logo separate from the official Bitcoin asset, and derive the public favicon from the app logo so branding stays consistent.
 - Treat network display copy separately from wallet chain constants; presentation changes must not switch RPC endpoints or imply production settlement.
-- Document simulated financial operations explicitly in README.md because wallet connectivity alone does not provide on-chain credit or payments.
-- Every simulated state change goes through logActivity() in src/lib/mezo.ts so the /activity ledger stays complete.
+- The app records only real wallet payments in `src/lib/mezo.ts` (`logActivity()` needs a real receipt hash). Never invent transaction hashes or balances. Payment requests (bills) are plain records, not chain activity.
+- Keep words plain and short on every screen: no protocol or wallet jargon in the UI. Bills, money, pay, receipt — not invoices-as-tokens, EIP-712, eth_call, or Troves.

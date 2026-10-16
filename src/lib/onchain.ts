@@ -244,6 +244,8 @@ export type Invoice712 = {
 };
 
 export function invoiceTypedData(chainId: number, verifyingContract: string, inv: Invoice712) {
+  // Amount is signed in the smallest unit so it matches the on-chain value.
+  const amountWei = parseMUSD(inv.amount).toString();
   return {
     types: {
       EIP712Domain: [
@@ -263,7 +265,7 @@ export function invoiceTypedData(chainId: number, verifyingContract: string, inv
     },
     primaryType: "Invoice",
     domain: { name: "MezoFlow", version: "1", chainId, verifyingContract },
-    message: { ...inv, amount: String(Math.round(inv.amount * 100)) },
+    message: { ...inv, amount: amountWei },
   };
 }
 

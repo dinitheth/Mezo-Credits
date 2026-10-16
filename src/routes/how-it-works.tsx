@@ -5,17 +5,10 @@ import { Btn, Card } from "@/components/ui-bits";
 export const Route = createFileRoute("/how-it-works")({
   head: () => ({
     meta: [
-      { title: "How MezoFlow works — Architecture" },
-      {
-        name: "description",
-        content:
-          "MezoFlow architecture: Router, Troves, Stability Pool, EIP-712 signatures and Pay with Credit settlement.",
-      },
+      { title: "How MezoFlow works" },
+      { name: "description", content: "What MezoFlow does, step by step." },
       { property: "og:title", content: "How MezoFlow works" },
-      {
-        property: "og:description",
-        content: "The architecture behind Bitcoin-backed credit and instant MUSD payments.",
-      },
+      { property: "og:description", content: "Bills, payments and borrowing on Mezo." },
       { property: "og:type", content: "article" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -26,51 +19,43 @@ export const Route = createFileRoute("/how-it-works")({
 const PARTS = [
   {
     n: "01",
-    title: "MezoFlow Router",
-    body: "One entry point that batches multi-step actions into a single transaction: deposit BTC, open or adjust a Trove, mint MUSD and forward it to the Stability Pool or an invoice recipient. You sign once instead of approving every call.",
-    flow: ["Wallet", "Router", "Trove Manager", "MUSD", "Pool / Recipient"],
+    title: "Make a bill",
+    body: "Type an amount and what it is for. You get a link and a code to scan. Share it anywhere.",
   },
   {
     n: "02",
-    title: "Troves & collateral ratio",
-    body: "A Trove holds your BTC and records your MUSD debt. Collateral ratio = BTC value ÷ debt. Below 110% the Trove can be liquidated, so MezoFlow offers 250%, 200% and 150% presets and warns you below 150%.",
-    flow: ["BTC in", "CR check", "Mint MUSD", "Health score"],
+    title: "People pay from their wallet",
+    body: "The link opens a simple pay page. They approve in their wallet and the money goes straight to you.",
   },
   {
     n: "03",
-    title: "Stability Pool",
-    body: "MUSD deposited in the pool repays the debt of liquidated Troves. In return depositors receive that Trove's BTC at a discount, which is your yield. You can claim it to your wallet or compound it into your own collateral.",
-    flow: ["Deposit MUSD", "Absorb liquidation", "Earn BTC", "Claim / Compound"],
+    title: "Bigger bills use the payment contract",
+    body: "For larger amounts, they approve once and a small on-Mezo program moves the money and keeps a public receipt anyone can check.",
   },
   {
     n: "04",
-    title: "EIP-712 delegated signatures",
-    body: "Typed, readable signatures authorise one exact action, e.g. 'pay invoice #ab12 for 250 MUSD, max 0.008 BTC'. The Router checks signature, nonce and deadline, so a merchant or relayer can submit it without ever holding your funds.",
-    flow: ["Typed data", "User signs", "Router verifies", "Executes once"],
+    title: "Plan a loan",
+    body: "See what your Bitcoin could borrow at three safety levels, with live prices. Real borrowing happens in the Mezo app, where your rate is locked.",
   },
   {
     n: "05",
-    title: "Dual-token utility",
-    body: "MUSD is the Bitcoin-backed dollar for borrowing, invoices and the pool. MEZO is the network token for fee discounts, governance and boosted incentives. BTC stays the collateral and the reward asset.",
-    flow: ["BTC collateral", "MUSD credit", "MEZO utility"],
+    title: "Grow savings",
+    body: "MUSD put in Mezo's shared pool earns Bitcoin when other loans close out. Deposits happen in the Mezo app.",
   },
   {
     n: "06",
-    title: "Bridging both tracks",
-    body: "Track 1 (credit) is Troves, ratios, liquidations and the pool. Track 2 (payments) is invoices, QR links and checkout. Pay with Credit joins them: the payer's BTC is locked and MUSD minted in the same step that pays the merchant.",
-    flow: ["Track 1: Credit", "Pay with Credit", "Track 2: Settlement"],
+    title: "MUSD and MEZO",
+    body: "MUSD is the dollar you borrow, bill and pay with. MEZO is Mezo's own coin for lower fees and votes. Bitcoin stays the backing behind it all.",
   },
 ];
 
 function HowItWorks() {
   return (
     <Shell>
-      <p className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">
-        Architecture
-      </p>
+      <p className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">Guide</p>
       <h1 className="mt-3 text-4xl font-bold md:text-5xl">How MezoFlow works</h1>
       <p className="mt-3 max-w-2xl text-muted-foreground">
-        From a BTC deposit to a settled invoice — every layer of the system, in order.
+        Bills, payments and loan planning on Mezo — nothing else.
       </p>
       <div className="mt-10 space-y-4">
         {PARTS.map((p) => (
@@ -79,30 +64,16 @@ function HowItWorks() {
             <div className="space-y-3">
               <h2 className="text-xl font-semibold">{p.title}</h2>
               <p className="leading-relaxed text-muted-foreground">{p.body}</p>
-              <div className="flex flex-wrap items-center gap-2">
-                {p.flow.map((f, i) => (
-                  <span key={f} className="flex items-center gap-2">
-                    <span className="rounded-md border bg-muted px-2 py-1 font-mono text-xs">
-                      {f}
-                    </span>
-                    {i < p.flow.length - 1 && (
-                      <span className="text-primary" aria-hidden="true">
-                        →
-                      </span>
-                    )}
-                  </span>
-                ))}
-              </div>
             </div>
           </Card>
         ))}
       </div>
       <p className="mt-6 text-xs text-muted-foreground">
-        In this version contract calls are simulated in your browser; wallet connection and network
-        switching are real.
+        Every payment runs through your wallet on the Mezo network. Nothing here moves money by
+        itself.
       </p>
-      <Link to="/borrow" className="mt-6 inline-block">
-        <Btn>Open a credit line</Btn>
+      <Link to="/pay" className="mt-6 inline-block">
+        <Btn>Make a payment link</Btn>
       </Link>
     </Shell>
   );

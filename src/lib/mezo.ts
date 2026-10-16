@@ -16,10 +16,8 @@ export const TIERS = [
 ] as const;
 
 export const MIN_CR = 110; // Mezo liquidation threshold
-export const SAFE_CR = 150; // collateral withdrawals must keep CR at or above this
-export const POOL = { apy: 8.4, baseStaked: 12_480_000 }; // simulated pool metrics
+export const SAFE_CR = 150; // healthy buffer shown by the planner
 
-export type Position = { collateral: number; debt: number; pool: number };
 export type Invoice = {
   id: string;
   amount: number;
@@ -29,6 +27,11 @@ export type Invoice = {
   tx?: string;
 };
 export type ActivityKind =
+  | "transfer"
+  | "router_pay"
+  | "approve"
+  | "invoice_paid"
+  // Kept so older saved lists still read; the app only records new payments.
   | "borrow"
   | "add_collateral"
   | "withdraw_collateral"
@@ -38,7 +41,6 @@ export type ActivityKind =
   | "claim_rewards"
   | "compound_rewards"
   | "invoice_created"
-  | "invoice_paid"
   | "shield_repay";
 export type Activity = {
   id: string;
@@ -51,28 +53,22 @@ export type Activity = {
   note?: string | undefined;
   onchain?: boolean | undefined;
 };
-export type Shield = { enabled: boolean; trigger: number; alerts: boolean };
-
 type State = {
   account: string | null;
   chainId: number | null;
   btcPrice: number;
-  position: Position;
+  priceLive: boolean;
   invoices: Invoice[];
   activity: Activity[];
-  rewardsBtc: number;
-  shield: Shield;
 };
 
 let state: State = {
   account: null,
   chainId: null,
-  btcPrice: 68000,
-  position: { collateral: 0, debt: 0, pool: 0 },
+  btcPrice: 0,
+  priceLive: false,
   invoices: [],
   activity: [],
-  rewardsBtc: 0,
-  shield: { enabled: false, trigger: 135, alerts: true },
 };
 const subs = new Set<() => void>();
 const emit = () => {
@@ -81,11 +77,8 @@ const emit = () => {
     localStorage.setItem(
       "mezoflow",
       JSON.stringify({
-        position: state.position,
         invoices: state.invoices,
         activity: state.activity,
-        rewardsBtc: state.rewardsBtc,
-        shield: state.shield,
       }),
     );
 };
@@ -97,15 +90,15 @@ export function getState() {
   return state;
 }
 
-/** Append an entry to the activity ledger and return its (simulated) tx hash. Pass onchain=true when tx was broadcast via the wallet. */
+/** Records a payment broadcast through the wallet. Only real receipts are listed. */
 export function logActivity(
   kind: ActivityKind,
   amount: number,
   unit: "BTC" | "MUSD",
   note?: string,
-  tx = fakeTx(),
-  onchain = false,
+  tx?: string,
 ) {
+  if (!tx) return "";
   const entry: Activity = {
     id: tx.slice(2, 14),
     ts: Date.now(),
@@ -115,7 +108,7 @@ export function logActivity(
     status: "confirmed",
     tx,
     note,
-    onchain: onchain || undefined,
+    onchain: true,
   };
   setState({ activity: [entry, ...state.activity].slice(0, 500) });
   return tx;
@@ -126,7 +119,18 @@ export function hydrateStore() {
   loaded = true;
   try {
     const raw = localStorage.getItem("mezoflow");
-    if (raw) state = { ...state, ...JSON.parse(raw) };
+    if (raw) {
+      const saved = JSON.parse(raw) as Partial<State> & {
+        position?: unknown;
+        rewardsBtc?: unknown;
+        shield?: unknown;
+      };
+      const activity = Array.isArray(saved.activity)
+        ? (saved.activity as Activity[]).filter((a) => a && a.onchain && typeof a.tx === "string")
+        : [];
+      const invoices = Array.isArray(saved.invoices) ? (saved.invoices as Invoice[]) : [];
+      state = { ...state, invoices, activity };
+    }
   } catch {
     // Corrupted persist is ignored; state stays at defaults.
   }
@@ -143,11 +147,57 @@ export function useStore() {
   );
 }
 
-export function fakeTx() {
-  const h = "0123456789abcdef";
-  let s = "0x";
-  for (let i = 0; i < 64; i++) s += h[Math.floor(Math.random() * 16)];
-  return s;
+/** Live Bitcoin price in USD. Tries two free feeds; returns 0 when offline. */
+export async function fetchBtcPrice(): Promise<number> {
+  const pick = (v: unknown): number => {
+    const n = typeof v === "string" ? Number(v) : (v as number);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+  try {
+    const r = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
+    if (r.ok) {
+      const j = (await r.json()) as { data?: { amount?: string } };
+      const p = pick(j.data?.amount);
+      if (p) return p;
+    }
+  } catch {
+    // Fall through to the backup feed.
+  }
+  try {
+    const r = await fetch(
+      "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd",
+    );
+    if (r.ok) {
+      const j = (await r.json()) as { bitcoin?: { usd?: number } };
+      const p = pick(j.bitcoin?.usd);
+      if (p) return p;
+    }
+  } catch {
+    // Offline: keep the last known price.
+  }
+  return 0;
+}
+
+/** Live BTC price, refreshed every minute while mounted. */
+export function usePriceFeed(live: boolean) {
+  const [, f] = useState(0);
+  useEffect(() => {
+    if (!live || typeof window === "undefined") return;
+    let stop = false;
+    const load = async () => {
+      const p = await fetchBtcPrice();
+      if (!stop && p > 0) {
+        setState({ btcPrice: Math.round(p), priceLive: true });
+        f((x) => x + 1);
+      }
+    };
+    void load();
+    const t = setInterval(load, 60_000);
+    return () => {
+      stop = true;
+      clearInterval(t);
+    };
+  }, [live]);
 }
 
 export const crOf = (coll: number, debt: number, price: number) =>
@@ -220,59 +270,6 @@ export async function switchToMezo() {
     } else throw err;
   }
   setState({ chainId: MEZO.chainId });
-}
-
-const TICK_MS = 3000;
-let lastAlert = 0;
-
-/** One simulation tick: accrue pool rewards and run the liquidation shield. */
-function simTick() {
-  const s = getState();
-  const { collateral, debt, pool } = s.position;
-  // Pool rewards: APY on MUSD deposit, paid in BTC (sped up 1000x so it is visible in a demo).
-  const accrued =
-    pool > 0
-      ? (((pool * POOL.apy) / 100 / (365 * 24 * 3600)) * (TICK_MS / 1000) * 1000) / s.btcPrice
-      : 0;
-  if (accrued) setState({ rewardsBtc: s.rewardsBtc + accrued });
-  const cr = crOf(collateral, debt, s.btcPrice);
-  if (!isFinite(cr) || cr >= s.shield.trigger) return;
-  if (s.shield.enabled && pool > 0) {
-    // Repay enough to restore CR to trigger + 15 points.
-    const target = s.shield.trigger + 15;
-    const need = Math.max(0, debt - (collateral * s.btcPrice * 100) / target);
-    const a = Math.min(pool, need);
-    if (a > 0) {
-      setState({ position: { collateral, debt: debt - a, pool: pool - a } });
-      logActivity("shield_repay", a, "MUSD", `Shield triggered at ${cr.toFixed(0)}% CR`);
-    }
-  }
-  if (
-    s.shield.alerts &&
-    Date.now() - lastAlert > 60_000 &&
-    typeof Notification !== "undefined" &&
-    Notification.permission === "granted"
-  ) {
-    lastAlert = Date.now();
-    new Notification("MezoFlow: Trove at risk", {
-      body: `Collateral ratio is ${cr.toFixed(0)}%, below your ${s.shield.trigger}% shield trigger.`,
-    });
-  }
-}
-
-/** Simulated live BTC price feed with gentle random walk; also drives reward accrual and the shield. */
-export function usePriceFeed(live: boolean) {
-  const [, f] = useState(0);
-  useEffect(() => {
-    if (!live) return;
-    const t = setInterval(() => {
-      const p = getState().btcPrice * (1 + (Math.random() - 0.5) * 0.004);
-      setState({ btcPrice: Math.round(p) });
-      simTick();
-      f((x) => x + 1);
-    }, TICK_MS);
-    return () => clearInterval(t);
-  }, [live]);
 }
 
 export const sats = (btc: number) => Math.round(btc * 1e8).toLocaleString("en-US");

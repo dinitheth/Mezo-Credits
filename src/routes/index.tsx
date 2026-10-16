@@ -31,35 +31,30 @@ export const Route = createFileRoute("/")({
 
 const rows: { title: string; body: ReactNode; to: "/borrow" | "/pay" | "/earn"; cta: string }[] = [
   {
-    title: "Credit line",
-    body: "Lock BTC in a Trove and mint MUSD at a fixed rate. Pick a safety level and the borrow amount is set for you.",
+    title: "Borrow planner",
+    body: "See what your Bitcoin could borrow, then borrow for real in the Mezo app.",
     to: "/borrow",
-    cta: "Open a line",
+    cta: "Plan a loan",
   },
   {
-    title: "Pay links",
-    body: (
-      <>
-        Send an invoice as a link. Your customer pays it straight from their
-        <BtcWord /> collateral, in one step.
-      </>
-    ),
+    title: "Payment links",
+    body: "Send a bill as a link. Your customer pays it from their wallet in one step.",
     to: "/pay",
     cta: "Make a link",
   },
   {
-    title: "Stability Pool",
-    body: "Park borrowed MUSD in the pool. It absorbs liquidations, defends the $1 peg and pays you in BTC.",
+    title: "Grow savings",
+    body: "Put MUSD in Mezo's shared pool and earn Bitcoin over time.",
     to: "/earn",
-    cta: "View pool",
+    cta: "How it grows",
   },
 ];
 
 function Landing() {
   const s = useStore();
   usePriceFeed(true);
-  const hasPosition = s.position.collateral > 0;
-  const perBtc = (s.btcPrice / (TIERS[1]?.cr ?? 200)) * 100;
+  const paid = s.invoices.filter((i) => i.paid).length;
+  const perBtc = s.btcPrice > 0 ? (s.btcPrice / (TIERS[1]?.cr ?? 200)) * 100 : 0;
 
   return (
     <Shell>
@@ -67,7 +62,7 @@ function Landing() {
       <section className="grid items-center gap-12 py-8 md:grid-cols-[1.15fr_1fr] md:py-14">
         <div>
           <p className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">
-            MezoFlow · BTC-backed credit
+            MezoFlow · Money on Bitcoin
           </p>
           <h1 className="mt-5 text-5xl font-bold leading-[1.02] tracking-tight md:text-7xl">
             Don't sell your
@@ -76,35 +71,36 @@ function Landing() {
             <span className="text-primary">Spend against it.</span>
           </h1>
           <p className="mt-6 max-w-md text-lg text-muted-foreground">
-            Borrow dollars (MUSD) with your BTC as collateral, then pay any invoice with one link.
-            You keep the
-            <BtcWord text="Bitcoin." />
+            Ask for dollars (MUSD) with a link, and get paid straight into your wallet. Plan what
+            your Bitcoin could borrow, too.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
-            <Link to="/borrow">
+            <Link to="/pay">
               <Btn className="gap-2 px-6 py-3 text-base">
-                Start borrowing <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                Make a payment link <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Btn>
             </Link>
             <Link
-              to={hasPosition ? "/dashboard" : "/pay"}
+              to={paid > 0 ? "/dashboard" : "/borrow"}
               className="text-sm font-medium underline decoration-primary underline-offset-4"
             >
-              {hasPosition ? "Your dashboard" : "or send a payment link"}
+              {paid > 0 ? "Your home" : "or plan a loan"}
             </Link>
           </div>
 
           <dl className="mt-12 flex flex-wrap gap-x-10 gap-y-4 border-t pt-6">
             <div>
-              <dt className="text-xs text-muted-foreground">BTC right now</dt>
-              <dd className="font-mono text-xl font-semibold">{usd(s.btcPrice)}</dd>
+              <dt className="text-xs text-muted-foreground">Bitcoin right now</dt>
+              <dd className="font-mono text-xl font-semibold">
+                {s.priceLive && s.btcPrice > 0 ? usd(s.btcPrice) : "loading…"}
+              </dd>
             </div>
             <div>
-              <dt className="text-xs text-muted-foreground">Borrow per 1 BTC</dt>
-              <dd className="font-mono text-xl font-semibold">{usd(perBtc)}</dd>
+              <dt className="text-xs text-muted-foreground">Borrow per 1 Bitcoin</dt>
+              <dd className="font-mono text-xl font-semibold">{perBtc > 0 ? usd(perBtc) : "—"}</dd>
             </div>
             <div>
-              <dt className="text-xs text-muted-foreground">Liquidation line</dt>
+              <dt className="text-xs text-muted-foreground">Safety line</dt>
               <dd className="font-mono text-xl font-semibold">{MIN_CR}%</dd>
             </div>
           </dl>
@@ -134,12 +130,12 @@ function Landing() {
       {/* Safety strip */}
       <section className="mt-20 grid gap-10 md:grid-cols-2">
         <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
-          You always see how far you are from liquidation.
+          Know your safety before you borrow.
         </h2>
         <div className="space-y-4 text-muted-foreground">
           <p>
-            Every position shows a health score, a collateral gauge and the exact BTC price where it
-            would be liquidated. Below 150% you get a warning; at {MIN_CR}% Mezo closes the Trove.
+            The planner shows what each safety level lets you borrow and the price where the loan
+            would close. Below 150% is risky; at {MIN_CR}% Mezo closes the loan.
           </p>
           <div className="flex gap-2">
             {TIERS.map((t) => (
@@ -156,8 +152,8 @@ function Landing() {
 
       {/* CTA */}
       <section className="mt-20 flex flex-col items-start justify-between gap-6 rounded-2xl bg-primary px-8 py-10 text-primary-foreground md:flex-row md:items-center">
-        <h2 className="text-2xl font-bold md:text-3xl">Grab BTC and open a line in a minute.</h2>
-        <Link to="/borrow">
+        <h2 className="text-2xl font-bold md:text-3xl">Get paid in a minute.</h2>
+        <Link to="/pay">
           <Btn
             variant="ghost"
             className="gap-2 bg-background px-6 py-3 text-base text-foreground hover:bg-background/90"

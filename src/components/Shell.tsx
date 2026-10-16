@@ -47,19 +47,19 @@ export function Shell({ children }: { children: ReactNode }) {
         </Link>
         <nav className="order-last flex w-full gap-1 overflow-x-auto whitespace-nowrap lg:order-none lg:w-auto">
           <Link to="/dashboard" className={nav} activeProps={active}>
-            Dashboard
+            Home
           </Link>
           <Link to="/borrow" className={nav} activeProps={active}>
-            Credit Line
+            Plan
           </Link>
           <Link to="/earn" className={nav} activeProps={active}>
-            Earn
+            Grow
           </Link>
           <Link to="/pay" className={nav} activeProps={active}>
-            Instant Pay
+            Get paid
           </Link>
           <Link to="/activity" className={nav} activeProps={active}>
-            Activity
+            Past payments
           </Link>
           <Link to="/how-it-works" className={nav} activeProps={active}>
             How it works
@@ -119,7 +119,7 @@ export function Shell({ children }: { children: ReactNode }) {
       )}
       <main className="mx-auto max-w-6xl px-4 pb-16 pt-4">{children}</main>
       <footer className="border-t py-6 text-center text-xs text-muted-foreground">
-        MezoFlow · Positions are simulated in your browser for demo purposes.
+        MezoFlow · Get paid in MUSD on Mezo.
       </footer>
     </div>
   );

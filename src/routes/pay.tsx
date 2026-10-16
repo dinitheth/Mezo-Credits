@@ -3,21 +3,20 @@ import { useState } from "react";
 import { Shell } from "@/components/Shell";
 import { Btn, Card, Field, cleanNum, inputCls } from "@/components/ui-bits";
 import { InvoiceQR } from "@/components/InvoiceQR";
-import { getState, logActivity, num, setState, short, useStore } from "@/lib/mezo";
+import { getState, num, setState, short, useStore } from "@/lib/mezo";
 
 export const Route = createFileRoute("/pay")({
   head: () => ({
     meta: [
-      { title: "Instant Pay & Credit Links — MezoFlow" },
+      { title: "Ask for money — MezoFlow" },
       {
         name: "description",
-        content:
-          "Create MUSD invoices and shareable payment links that payers settle from their BTC credit line.",
+        content: "Make MUSD payment links people can pay in one step.",
       },
-      { property: "og:title", content: "Instant Pay with Credit Links — MezoFlow" },
+      { property: "og:title", content: "Ask for money — MezoFlow" },
       {
         property: "og:description",
-        content: "Generate MUSD payment links with Pay-with-Credit checkout on Mezo.",
+        content: "Shareable MUSD payment links on Mezo.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -29,7 +28,7 @@ export const Route = createFileRoute("/pay")({
 function Pay() {
   const s = useStore();
   const [amount, setAmount] = useState("250");
-  const [desc, setDesc] = useState("Design services — October");
+  const [desc, setDesc] = useState("Design work — October");
   const [to, setTo] = useState("");
   const [copied, setCopied] = useState("");
   const valid = Number(amount) > 0 && /^0x[0-9a-fA-F]{40}$/.test(to || s.account || "");
@@ -43,25 +42,19 @@ function Pay() {
         ...getState().invoices,
       ],
     });
-    logActivity(
-      "invoice_created",
-      Number(amount),
-      "MUSD",
-      `Invoice ${id} · to ${short(recipient)}`,
-    );
   };
   const link = (i: { id: string; amount: number; description: string; recipient: string }) =>
     `${typeof window === "undefined" ? "" : window.location.origin}/checkout?id=${i.id}&amount=${i.amount}&to=${i.recipient}&desc=${encodeURIComponent(i.description)}`;
 
   return (
     <Shell>
-      <h1 className="text-3xl font-bold">Instant Pay</h1>
+      <h1 className="text-3xl font-bold">Ask for money</h1>
       <p className="mt-2 text-muted-foreground">
-        Bill in MUSD. Payers can settle from their wallet or tap their BTC credit line in one step.
+        Make a payment link. Share it, and the money lands straight in your wallet.
       </p>
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <Card className="space-y-4">
-          <Field label="Amount (MUSD)">
+          <Field label="Amount in dollars (MUSD)">
             <input
               className={inputCls}
               inputMode="decimal"
@@ -69,7 +62,7 @@ function Pay() {
               onChange={(e) => setAmount(cleanNum(e.target.value, 2))}
             />
           </Field>
-          <Field label="Description">
+          <Field label="What is it for?">
             <input
               className={inputCls + " font-sans"}
               maxLength={140}
@@ -78,8 +71,8 @@ function Pay() {
             />
           </Field>
           <Field
-            label="Recipient address"
-            tip="Mezo address that receives MUSD. Defaults to your connected wallet."
+            label="Send the money to"
+            tip="The wallet that gets paid. Empty means your own wallet."
           >
             <input
               className={inputCls}
@@ -90,17 +83,19 @@ function Pay() {
           </Field>
           {!valid && (
             <p className="text-xs text-muted-foreground">
-              Enter an amount and a valid 0x address (or connect your wallet).
+              Add an amount. To send to someone else, paste their wallet address.
             </p>
           )}
           <Btn className="w-full" disabled={!valid} onClick={create}>
-            Generate payment link
+            Make the link
           </Btn>
         </Card>
         <div className="space-y-3">
-          <h2 className="font-semibold">Your invoices</h2>
+          <h2 className="font-semibold">Your links</h2>
           {s.invoices.length === 0 && (
-            <Card className="text-sm text-muted-foreground">No invoices yet.</Card>
+            <Card className="text-sm text-muted-foreground">
+              Nothing here yet. Make your first link on the left.
+            </Card>
           )}
           {s.invoices.map((i) => (
             <Card key={i.id} className="space-y-2">
@@ -133,7 +128,7 @@ function Pay() {
                   search={{ id: i.id, amount: i.amount, to: i.recipient, desc: i.description }}
                 >
                   <Btn variant="ghost" className="py-1.5">
-                    Open checkout
+                    Open pay page
                   </Btn>
                 </Link>
               </div>
