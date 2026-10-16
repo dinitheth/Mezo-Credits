@@ -48,15 +48,25 @@ function TxCell({ a }: { a: Activity }) {
   const [receipt, setReceipt] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
-    getTxReceipt(a.tx)
-      .then((r) => {
-        if (!live) return;
-        if (r === null) setReceipt("confirming…");
-        else setReceipt(r.status === "0x1" ? "done ✓" : "failed");
-      })
-      .catch(() => {
-        if (live) setReceipt(null);
-      });
+    let tries = 0;
+    const check = async () => {
+      const r = await getTxReceipt(a.tx).catch(() => null);
+      if (!live) return;
+      if (r && r.blockNumber) {
+        setReceipt(r.status === "0x1" ? "done ✓" : "failed");
+        return;
+      }
+      tries += 1;
+      if (tries < 10) {
+        setReceipt("confirming…");
+        setTimeout(() => {
+          if (live) void check();
+        }, 4000);
+      } else {
+        setReceipt(null);
+      }
+    };
+    void check();
     return () => {
       live = false;
     };
