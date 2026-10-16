@@ -7,7 +7,10 @@ Both have zero imports. Compiler `0.8.20`, optimizer on, EVM default.
 Deployed (Mezo testnet 31611): `0x99A9554C090C206a3811604448E5a29CAaB00d45`
 Deploy receipt: `0x631a15b33f687cbe5120f3841f3e052f3afeaeb4a1eec50bec190fad70df5338` (block 16173807). Verified as `InvoiceRouter` on `explorer.test.mezo.org`.
 
-## FlowVault — our own lending pool (deploy next)
+## FlowVault — our own lending pool (live)
+
+Deployed (Mezo testnet 31611): `0x241af24502bD8DC163c1163Cdb35E9845510544f`
+Deploy receipt: `0x32fb9682c1184ba38db2863547d7d3a9a03f22c988a94b2a3e4ed7d5ff9419a4` (block 16187528).
 
 1. Remix → new file `FlowVault.sol` → paste `contracts/FlowVault.sol`.
 2. Compile `0.8.20`, optimizer on.

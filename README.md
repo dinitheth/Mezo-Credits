@@ -37,7 +37,7 @@ second, paid to lenders. Deploys in Remix — see `contracts/README.md`.
 | ---------------- | ----------------------------------------------------------------------------------- |
 | MUSD             | `0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503`                                        |
 | Payment contract | `0x99A9554C090C206a3811604448E5a29CAaB00d45` (first deployed version)               |
-| Lending pool     | `VITE_VAULT_ADDRESS_TESTNET` (deploy `contracts/FlowVault.sol`)                     |
+| Lending pool     | `0x241af24502bD8DC163c1163Cdb35E9845510544f` (first deployed version)               |
 | Network          | Chain 31611, `https://rpc.test.mezo.org`, explorer `https://explorer.test.mezo.org` |
 
 Main network MUSD: `0xdD468A1DDc392dcdbEf6db6e34E89AA338F9F186`.

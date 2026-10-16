@@ -399,7 +399,8 @@ export async function payViaRouter(
 // ---------------------------------------------------------------------------
 
 export function vaultAddressFor(chainId: number | null): string | null {
-  if (chainId === 31611) return env("VITE_VAULT_ADDRESS_TESTNET");
+  if (chainId === 31611)
+    return env("VITE_VAULT_ADDRESS_TESTNET") ?? "0x241af24502bD8DC163c1163Cdb35E9845510544f";
   if (chainId === 31612) return env("VITE_VAULT_ADDRESS_MAINNET");
   return null;
 }
