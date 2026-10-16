@@ -33,7 +33,7 @@ function Borrow() {
           <h1 className="text-3xl font-bold">Borrow planner</h1>
           <p className="mt-2 text-muted-foreground">
             See what your Bitcoin could borrow in MUSD, Mezo&apos;s
-            <BtcWord text="Bitcoin-backed" /> dollar. Then borrow for real in the Mezo app.
+            <BtcWord text="Bitcoin-backed" /> dollar. Then put MUSD to work right here.
           </p>
           <ul className="mt-6 space-y-3 text-sm text-muted-foreground">
             <li>
@@ -47,11 +47,11 @@ function Borrow() {
             </li>
           </ul>
           <div className="mt-6 flex flex-wrap gap-2">
-            <a href="https://mezo.org/feature/borrow" target="_blank" rel="noreferrer">
-              <Btn>Borrow in the Mezo app</Btn>
-            </a>
             <Link to="/pay">
-              <Btn variant="ghost">Send a payment link</Btn>
+              <Btn>Send a payment link</Btn>
+            </Link>
+            <Link to="/earn">
+              <Btn variant="ghost">Grow savings</Btn>
             </Link>
           </div>
         </div>

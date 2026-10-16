@@ -86,8 +86,8 @@ export function CreditForm() {
       )}
 
       <p className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
-        Mezo asks for at least 1,800 MUSD per loan. To borrow for real, open the loan in the Mezo
-        app, then come back here to pay people with it.
+        Mezo asks for at least 1,800 MUSD per loan. When you have MUSD, send it from Get paid or
+        watch it grow under Grow.
       </p>
     </div>
   );

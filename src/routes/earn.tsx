@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Shell } from "@/components/Shell";
 import { OnchainPanel } from "@/components/OnchainPanel";
 import { Btn, Card } from "@/components/ui-bits";
@@ -26,7 +26,7 @@ function Earn() {
       <h1 className="text-3xl font-bold">Grow your money</h1>
       <p className="mt-2 max-w-2xl text-muted-foreground">
         Mezo has a shared savings pool. You put in MUSD, and when other loans close out, you earn
-        Bitcoin. Your balance is below — deposits happen in the Mezo app.
+        Bitcoin. Your balance is below.
       </p>
 
       <div className="mt-6">
@@ -40,16 +40,19 @@ function Earn() {
             When a loan falls too far, the pool covers it and shares that loan&apos;s Bitcoin
             between everyone in the pool.
           </p>
-          <a href="https://mezo.org/feature/earn" target="_blank" rel="noreferrer">
-            <Btn>Open the Mezo app</Btn>
-          </a>
+          <Link to="/pay">
+            <Btn>Get paid in MUSD first</Btn>
+          </Link>
         </Card>
         <Card className="space-y-3">
           <h2 className="font-semibold">What you need</h2>
           <p className="text-sm text-muted-foreground">
-            MUSD in your wallet on Mezo. Get some by borrowing, or ask someone to pay you with a
-            MezoFlow link.
+            MUSD in your wallet on Mezo. Ask someone to pay you with a MezoFlow link, then bring it
+            back here.
           </p>
+          <Link to="/activity">
+            <Btn variant="ghost">See past payments</Btn>
+          </Link>
         </Card>
         <Card className="space-y-3">
           <h2 className="font-semibold">MEZO token</h2>
