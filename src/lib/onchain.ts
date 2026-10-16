@@ -182,7 +182,7 @@ export async function getBlockNumber(): Promise<bigint> {
 
 export type TxReceipt = { status: string; blockNumber: string } | null;
 
-/** Indexer hook: fetch a receipt for a real tx hash. Returns null for simulated hashes. */
+/** Read a payment receipt. Empty until the network confirms it. */
 export async function getTxReceipt(txHash: string): Promise<TxReceipt> {
   const e = provider();
   if (!e) return null;
@@ -192,6 +192,28 @@ export async function getTxReceipt(txHash: string): Promise<TxReceipt> {
       params: [txHash],
     })) as TxReceipt;
     return r ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Wait until a payment is confirmed. Empty when it takes too long. */
+export async function waitForReceipt(txHash: string, timeoutMs = 120000): Promise<TxReceipt> {
+  const start = Date.now();
+  for (;;) {
+    const r = await getTxReceipt(txHash);
+    if (r && r.blockNumber) return r;
+    if (Date.now() - start > timeoutMs) return r;
+    await new Promise((res) => setTimeout(res, 2500));
+  }
+}
+
+/** True = went through, false = went wrong, empty = still unknown. */
+export async function didSucceed(txHash: string): Promise<boolean | null> {
+  try {
+    const r = await waitForReceipt(txHash);
+    if (!r) return null;
+    return r.status === "0x1";
   } catch {
     return null;
   }

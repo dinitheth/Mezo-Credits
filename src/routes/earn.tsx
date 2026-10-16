@@ -3,14 +3,16 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Shell } from "@/components/Shell";
 import { OnchainPanel } from "@/components/OnchainPanel";
 import { Btn, Card, Field, Stat, cleanNum, inputCls } from "@/components/ui-bits";
-import { logActivity, num, useStore } from "@/lib/mezo";
+import { logActivity, num, setActivityStatus, useStore } from "@/lib/mezo";
 import {
   approveRouter,
+  didSucceed,
   getVaultPosition,
   musdAddressFor,
   vaultAddressFor,
   vaultLend,
   vaultUnlend,
+  waitForReceipt,
 } from "@/lib/onchain";
 
 export const Route = createFileRoute("/earn")({
@@ -73,15 +75,25 @@ function Earn() {
     try {
       const { account, musd } = need();
       if (!vault) throw new Error("The pool is not open yet.");
-      await approveRouter(musd, vault, dep, account).catch((e) => {
+      setMsg("Step 1 of 2: approving in your wallet…");
+      const approval = await approveRouter(musd, vault, dep, account).catch((e) => {
         if (!/rejected|denied/i.test(e instanceof Error ? e.message : String(e))) throw e;
         throw new Error("You said no in your wallet. Nothing moved.");
       });
+      setMsg("Waiting on step 1…");
+      await waitForReceipt(approval);
+      setMsg("Step 2 of 2: putting it in…");
       const hash = await vaultLend(vault, account, dep);
       logActivity("pool_deposit", a, "MUSD", "Lent to borrowers", hash);
       setDep("");
       await refresh();
       setMsg(`Lent ${num(a, 2)} MUSD · receipt ${hash.slice(0, 12)}…`);
+      void didSucceed(hash).then((ok) => {
+        if (ok === false) {
+          setActivityStatus(hash, "failed");
+          setMsg("That did not go through (see Past payments). Nothing moved.");
+        }
+      });
     } catch (e) {
       setErr(e instanceof Error ? e.message : "That did not go through. Try again.");
     } finally {
@@ -111,6 +123,12 @@ function Earn() {
       setWd("");
       await refresh();
       setMsg(`Took ${num(a, 2)} MUSD · receipt ${hash.slice(0, 12)}…`);
+      void didSucceed(hash).then((ok) => {
+        if (ok === false) {
+          setActivityStatus(hash, "failed");
+          setMsg("That did not go through (see Past payments). Nothing moved.");
+        }
+      });
     } catch (e) {
       setErr(e instanceof Error ? e.message : "That did not go through. Try again.");
     } finally {

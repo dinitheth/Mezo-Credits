@@ -113,6 +113,13 @@ export function logActivity(
   setState({ activity: [entry, ...state.activity].slice(0, 500) });
   return tx;
 }
+
+/** Correct a payment's state once the network confirms it. */
+export function setActivityStatus(tx: string, status: "confirmed" | "failed") {
+  setState({
+    activity: state.activity.map((a) => (a.tx === tx ? { ...a, status } : a)),
+  });
+}
 let loaded = false;
 export function hydrateStore() {
   if (loaded || typeof window === "undefined") return;

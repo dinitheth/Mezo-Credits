@@ -5,8 +5,9 @@ import { BtcWord } from "@/components/BitcoinMark";
 import { CreditForm } from "@/components/CreditForm";
 import { OnchainPanel } from "@/components/OnchainPanel";
 import { Btn, Card } from "@/components/ui-bits";
-import { logActivity, num, useStore } from "@/lib/mezo";
+import { logActivity, num, setActivityStatus, useStore } from "@/lib/mezo";
 import {
+  didSucceed,
   getVaultPosition,
   parseMUSD,
   vaultAddressFor,
@@ -71,6 +72,12 @@ function Borrow() {
       );
       logActivity("borrow", info.amount, "MUSD", `Locked ${info.btc} BTC at ${info.tier}%`, hash);
       setMsg(`Borrowed ${num(info.amount, 2)} MUSD · receipt ${hash.slice(0, 12)}…`);
+      void didSucceed(hash).then((ok) => {
+        if (ok === false) {
+          setActivityStatus(hash, "failed");
+          setMsg("That did not go through (see Past payments). Nothing moved.");
+        }
+      });
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Borrowing did not go through. Try again.");
     } finally {

@@ -4,14 +4,25 @@ import { z } from "zod";
 import { Shell } from "@/components/Shell";
 import { InvoiceQR } from "@/components/InvoiceQR";
 import { Btn, Card } from "@/components/ui-bits";
-import { MEZO, getState, logActivity, num, setState, short, useStore } from "@/lib/mezo";
+import {
+  MEZO,
+  getState,
+  logActivity,
+  num,
+  setActivityStatus,
+  setState,
+  short,
+  useStore,
+} from "@/lib/mezo";
 import {
   approveRouter,
+  didSucceed,
   musdAddressFor,
   payViaRouter,
   routerAddressFor,
   sendMusd,
   signInvoice712,
+  waitForReceipt,
 } from "@/lib/onchain";
 import { cn } from "@/lib/utils";
 
@@ -52,6 +63,18 @@ function Checkout() {
     });
     logActivity("invoice_paid", inv.amount, "MUSD", `${how} · to ${short(inv.to)}`, t);
     setTx(t);
+    void didSucceed(t).then((ok) => {
+      if (ok === false) {
+        setActivityStatus(t, "failed");
+        setState({
+          invoices: getState().invoices.map((i) =>
+            i.id === inv.id ? { ...i, paid: false, tx: undefined } : i,
+          ),
+        });
+        setTx(null);
+        setErr("That did not go through (see Past payments). Nothing moved.");
+      }
+    });
   };
 
   const needMezo = () => {
@@ -94,9 +117,11 @@ function Checkout() {
         deadline,
         nonce,
       });
-      await approveRouter(musd, router, inv.amount, account).catch((e) => {
+      const approval = await approveRouter(musd, router, inv.amount, account).catch((e) => {
         if (/rejected|denied/i.test(e instanceof Error ? e.message : String(e))) throw e;
+        throw new Error("You said no in your wallet. Nothing moved.");
       });
+      await waitForReceipt(approval);
       const hash = await payViaRouter(
         router,
         {

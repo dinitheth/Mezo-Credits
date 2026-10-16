@@ -3,9 +3,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Shell } from "@/components/Shell";
 import { OnchainPanel } from "@/components/OnchainPanel";
 import { Btn, Card, Field, Stat, cleanNum, inputCls } from "@/components/ui-bits";
-import { MEZO, logActivity, num, usePriceFeed, useStore } from "@/lib/mezo";
+import { MEZO, logActivity, num, setActivityStatus, usePriceFeed, useStore } from "@/lib/mezo";
 import {
   approveRouter,
+  didSucceed,
   getVaultPosition,
   musdAddressFor,
   vaultAddBacking,
@@ -13,6 +14,7 @@ import {
   vaultCloseLoan,
   vaultRepay,
   vaultTakeBacking,
+  waitForReceipt,
   type VaultLoan,
 } from "@/lib/onchain";
 
@@ -88,11 +90,28 @@ function Dashboard() {
       const hash = await fn(s.account, vault, musd);
       await refresh();
       setMsg(`${label} · receipt ${hash.slice(0, 12)}…`);
+      void didSucceed(hash).then((ok) => {
+        if (ok === false) {
+          setActivityStatus(hash, "failed");
+          setMsg("That did not go through (see Past payments). Nothing moved.");
+        }
+      });
     } catch (e) {
       setErr(e instanceof Error ? e.message : "That did not go through. Try again.");
     } finally {
       setBusy(false);
     }
+  };
+
+  const approveFirst = async (musd: string, v: string, account: string, amount: string) => {
+    setMsg("Step 1 of 2: approving in your wallet…");
+    const approval = await approveRouter(musd, v, amount, account).catch((e) => {
+      if (!/rejected|denied/i.test(e instanceof Error ? e.message : String(e))) throw e;
+      throw new Error("You said no in your wallet. Nothing moved.");
+    });
+    setMsg("Waiting on step 1…");
+    await waitForReceipt(approval);
+    setMsg("Step 2 of 2: sending it…");
   };
 
   const doAdd = () => {
@@ -109,10 +128,7 @@ function Dashboard() {
     const a = Number(pay) || 0;
     if (!a) return;
     void run(`Paid ${num(a, 2)} MUSD`, async (account, v, musd) => {
-      await approveRouter(musd, v, pay, account).catch((e) => {
-        if (!/rejected|denied/i.test(e instanceof Error ? e.message : String(e))) throw e;
-        throw new Error("You said no in your wallet. Nothing moved.");
-      });
+      await approveFirst(musd, v, account, pay);
       const hash = await vaultRepay(v, account, pay);
       logActivity("repay", a, "MUSD", "Paid down your loan", hash);
       return hash;
@@ -140,10 +156,7 @@ function Dashboard() {
       if (owed <= 0) throw new Error("That wallet has no loan.");
       if (Number(pos.loan.ratio) >= 110)
         throw new Error("That loan is still safe. Only loans under 110% can close.");
-      await approveRouter(musd, v, owed.toFixed(2), account).catch((e) => {
-        if (!/rejected|denied/i.test(e instanceof Error ? e.message : String(e))) throw e;
-        throw new Error("You said no in your wallet. Nothing moved.");
-      });
+      await approveFirst(musd, v, account, owed.toFixed(2));
       const hash = await vaultCloseLoan(v, account, close);
       logActivity("repay", owed, "MUSD", "Closed someone's unsafe loan, kept their Bitcoin", hash);
       return hash;
