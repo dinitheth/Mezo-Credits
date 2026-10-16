@@ -112,7 +112,8 @@ contract FlowVault {
 
   function lend(uint256 amount) external noReentry {
     if (amount == 0) revert TooLittle();
-    uint256 n = totalShares == 0 ? amount : (amount * totalShares) / poolBalance;
+    uint256 n =
+      totalShares == 0 || poolBalance == 0 ? amount : (amount * totalShares) / poolBalance;
     if (!musd.transferFrom(msg.sender, address(this), amount)) revert TakeFailed();
     poolBalance += amount;
     totalShares += n;
@@ -181,9 +182,9 @@ contract FlowVault {
 
   function takeBacking(uint256 backing) external noReentry {
     Loan storage l = loans[msg.sender];
-    if (l.owed == 0) revert NothingOwed();
+    if (l.backing == 0) revert NoBacking();
     _accrue(msg.sender);
-    if (backing > l.backing) revert TooLittle();
+    if (backing == 0 || backing > l.backing) revert TooLittle();
     uint256 left = l.backing - backing;
     if (l.owed > 0) {
       if ((backingValue(left) * 100) / l.owed < SAFE_BACKING) revert Unsafe();

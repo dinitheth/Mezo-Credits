@@ -11,16 +11,16 @@ import { BitcoinMark } from "@/components/BitcoinMark";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "MezoFlow — Borrow dollars against your Bitcoin" },
+      { title: "MezoFlow — Don't sell your Bitcoin. Spend against it." },
       {
         name: "description",
         content:
-          "Lock BTC, mint dollar-pegged MUSD, and settle invoices instantly with Pay-with-Credit links on Mezo.",
+          "Borrow MUSD against Bitcoin, get paid with links, and track every payment on Mezo.",
       },
-      { property: "og:title", content: "MezoFlow — Borrow dollars against your Bitcoin" },
+      { property: "og:title", content: "MezoFlow — Don't sell your Bitcoin. Spend against it." },
       {
         property: "og:description",
-        content: "BTC credit lines and Pay-with-Credit checkout on Mezo.",
+        content: "Bitcoin-backed borrowing and MUSD payments on Mezo.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
