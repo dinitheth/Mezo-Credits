@@ -135,7 +135,12 @@ export function hydrateStore() {
       const activity = Array.isArray(saved.activity)
         ? (saved.activity as Activity[]).filter((a) => a && a.onchain && typeof a.tx === "string")
         : [];
-      const invoices = Array.isArray(saved.invoices) ? (saved.invoices as Invoice[]) : [];
+      const knownTx = new Set(activity.map((a) => a.tx));
+      const invoices = Array.isArray(saved.invoices)
+        ? (saved.invoices as Invoice[]).map((i) =>
+            i.paid && i.tx && !knownTx.has(i.tx) ? { ...i, paid: false, tx: undefined } : i,
+          )
+        : [];
       state = { ...state, invoices, activity };
     }
   } catch {

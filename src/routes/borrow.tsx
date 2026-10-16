@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Shell } from "@/components/Shell";
 import { BtcWord } from "@/components/BitcoinMark";
@@ -8,6 +8,7 @@ import { Btn, Card } from "@/components/ui-bits";
 import { logActivity, num, setActivityStatus, useStore } from "@/lib/mezo";
 import {
   didSucceed,
+  getVaultGlobals,
   getVaultPosition,
   parseMUSD,
   vaultAddressFor,
@@ -40,7 +41,22 @@ function Borrow() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const vault = vaultAddressFor(s.chainId);
+  const vault = vaultAddressFor(s.chainId ?? 31611);
+  const onMezo = !s.chainId || s.chainId === 31611 || s.chainId === 31612;
+  const [poolSize, setPoolSize] = useState<number | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    if (!vault) return;
+    getVaultGlobals(vault)
+      .then((g) => {
+        if (live) setPoolSize(Number(g.poolBalance) / 1e18);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [vault]);
 
   const borrow = async (info: { btc: number; amount: number; tier: number }) => {
     setBusy(true);
@@ -49,6 +65,8 @@ function Borrow() {
     try {
       if (!s.account) throw new Error("Connect your wallet first.");
       if (!vault) throw new Error("The pool is not open yet. It opens right after launch.");
+      if (s.chainId !== 31611 && s.chainId !== 31612)
+        throw new Error("Switch to the Mezo network in your wallet first.");
       if (!s.priceLive || s.btcPrice <= 0) throw new Error("Waiting on the live price. Try again.");
       const pos = await getVaultPosition(vault, s.account);
       const want = parseMUSD(info.amount.toFixed(2));
@@ -133,8 +151,17 @@ function Borrow() {
                 already runs on live prices.
               </p>
             </div>
-          ) : null}
-          <CreditForm onBorrow={vault ? borrow : undefined} borrowing={busy} />
+          ) : (
+            <p className="mb-4 text-center text-sm text-muted-foreground">
+              Pool holds{" "}
+              <span className="font-mono text-foreground">
+                {poolSize === null ? "…" : `${num(poolSize, 2)} MUSD`}
+              </span>{" "}
+              right now
+              {!onMezo && " · switch to Mezo to borrow"}
+            </p>
+          )}
+          <CreditForm onBorrow={vault && onMezo ? borrow : undefined} borrowing={busy} />
         </Card>
       </div>
       <div className="mt-4">

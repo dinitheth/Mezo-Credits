@@ -37,7 +37,8 @@ const fmt = (w: bigint, dp = 4) => Number(w) / 1e18;
 
 function useLoan() {
   const s = useStore();
-  const vault = vaultAddressFor(s.chainId);
+  const vault = vaultAddressFor(s.chainId ?? 31611);
+  const onMezo = !s.chainId || s.chainId === 31611 || s.chainId === 31612;
   const [loan, setLoan] = useState<VaultLoan | null>(null);
   const [poolValue, setPoolValue] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -61,13 +62,13 @@ function useLoan() {
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vault, s.account]);
-  return { vault, loan, poolValue, loading, refresh };
+  return { vault, onMezo, loan, poolValue, loading, refresh };
 }
 
 function Dashboard() {
   const s = useStore();
   usePriceFeed(true);
-  const { vault, loan, poolValue, loading, refresh } = useLoan();
+  const { vault, onMezo, loan, poolValue, loading, refresh } = useLoan();
   const [add, setAdd] = useState("");
   const [pay, setPay] = useState("");
   const [take, setTake] = useState("");
@@ -206,6 +207,13 @@ function Dashboard() {
           <h2 className="text-xl font-semibold">The pool opens at launch</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Loans start as soon as our pool contract is live on Mezo.
+          </p>
+        </Card>
+      ) : !onMezo ? (
+        <Card>
+          <h2 className="text-xl font-semibold">Wrong network</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            You are on another network. Switch to Mezo in your wallet to see your loan.
           </p>
         </Card>
       ) : !loan ? (

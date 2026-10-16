@@ -8,6 +8,7 @@ import {
   approveRouter,
   didSucceed,
   getMusdBalance,
+  getVaultGlobals,
   getVaultPosition,
   musdAddressFor,
   vaultAddressFor,
@@ -32,7 +33,8 @@ export const Route = createFileRoute("/earn")({
 
 function Earn() {
   const s = useStore();
-  const vault = vaultAddressFor(s.chainId);
+  const vault = vaultAddressFor(s.chainId ?? 31611);
+  const onMezo = !s.chainId || s.chainId === 31611 || s.chainId === 31612;
   const [poolValue, setPoolValue] = useState(0);
   const [shares, setShares] = useState(0n);
   const [poolSize, setPoolSize] = useState(0);
@@ -43,12 +45,14 @@ function Earn() {
   const [err, setErr] = useState<string | null>(null);
 
   const refresh = async () => {
-    if (!vault || !s.account) return;
+    if (!vault) return;
     try {
+      const g = await getVaultGlobals(vault);
+      setPoolSize(Number(g.poolBalance) / 1e18);
+      if (!s.account) return;
       const pos = await getVaultPosition(vault, s.account);
       setPoolValue(Number(pos.poolValue) / 1e18);
       setShares(pos.shares);
-      setPoolSize(Number(pos.poolBalance) / 1e18);
     } catch {
       // Leave last values on screen.
     }
@@ -170,6 +174,11 @@ function Earn() {
               <Stat label="Your share is worth" value={`${num(poolValue, 2)} MUSD`} tone="gold" />
               <Stat label="MEZO" value="Shown under your money" />
             </div>
+            {!onMezo && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                You are on another network. Switch to Mezo to lend or take back.
+              </p>
+            )}
           </Card>
 
           <div className="mt-4 grid gap-4 lg:grid-cols-2">

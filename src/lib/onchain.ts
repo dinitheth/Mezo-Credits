@@ -220,10 +220,8 @@ export async function didSucceed(txHash: string): Promise<boolean | null> {
 }
 
 /**
- * Real write (Wave 1 screening): ERC-20 MUSD `transfer`.
- * Broadcasts via the connected wallet on Mezo testnet/mainnet and returns the
- * real transaction hash. This is the on-chain leg alongside the simulated
- * Trove flows; Trove `BorrowerOperations` wiring is Wave 2 (phase 2).
+ * Real write: ERC-20 MUSD `transfer` through the connected wallet.
+ * Returns the receipt hash.
  */
 export async function sendMusd(
   to: string,
@@ -245,7 +243,7 @@ export async function sendMusd(
 }
 
 // ---------------------------------------------------------------------------
-// EIP-712 delegated invoice signatures (Wave 2 checkout leg)
+// InvoiceRouter — the payment contract (`contracts/InvoiceRouter.sol`)
 // ---------------------------------------------------------------------------
 
 export type Invoice712 = {
@@ -284,9 +282,8 @@ export function invoiceTypedData(chainId: number, verifyingContract: string, inv
 }
 
 /**
- * Real wallet signature via `eth_signTypedData_v4`. When `VITE_ROUTER_*` is
- * set, Checkout signs against the deployed InvoiceRouter so `payInvoice`
- * verifies on-chain; otherwise the signature is stored in the ledger note.
+ * Wallet signature for one exact bill, checked by the payment contract.
+ * The signed amount matches the on-chain amount below.
  */
 export async function signInvoice712(
   account: string,
@@ -305,7 +302,7 @@ export async function signInvoice712(
 }
 
 // ---------------------------------------------------------------------------
-// InvoiceRouter (Wave 1 custom contract leg — `contracts/InvoiceRouter.sol`)
+// FlowVault — our own lending pool (`contracts/FlowVault.sol`)
 // ---------------------------------------------------------------------------
 
 export function routerAddressFor(chainId: number | null): string | null {
@@ -662,3 +659,19 @@ export const vaultCloseLoan = (vault: string, from: string, who: string) =>
 export const vaultSetPrice = (vault: string, from: string, usdPrice: number) =>
   vaultSend(vault, from, "setPrice", [parseMUSD(usdPrice)]);
 export const vaultOwner = (vault: string) => vaultCall<string>(vault, "owner", []);
+
+/** Pool-wide numbers anyone can read — no wallet needed. */
+export async function getVaultGlobals(vault: string): Promise<{
+  poolBalance: bigint;
+  totalShares: bigint;
+  price: bigint;
+  owner: string;
+}> {
+  const [poolBalance, totalShares, price, owner] = await Promise.all([
+    vaultCall<bigint>(vault, "poolBalance", []),
+    vaultCall<bigint>(vault, "totalShares", []),
+    vaultCall<bigint>(vault, "btcPrice", []),
+    vaultCall<string>(vault, "owner", []),
+  ]);
+  return { poolBalance, totalShares, price, owner };
+}

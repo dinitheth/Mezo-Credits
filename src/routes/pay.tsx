@@ -41,6 +41,9 @@ function Pay() {
   const [copied, setCopied] = useState("");
   const valid = Number(amount) > 0 && /^0x[0-9a-fA-F]{40}$/.test(to || s.account || "");
 
+  const remove = (id: string) => {
+    setState({ invoices: getState().invoices.filter((i) => i.id !== id) });
+  };
   const create = () => {
     const id = Math.random().toString(36).slice(2, 10);
     const recipient = to || s.account!;
@@ -139,6 +142,9 @@ function Pay() {
                     Open pay page
                   </Btn>
                 </Link>
+                <Btn variant="ghost" className="py-1.5" onClick={() => remove(i.id)}>
+                  Remove
+                </Btn>
               </div>
             </Card>
           ))}
