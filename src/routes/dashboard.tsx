@@ -7,6 +7,7 @@ import { MEZO, logActivity, num, setActivityStatus, usePriceFeed, useStore } fro
 import {
   approveRouter,
   didSucceed,
+  getMusdBalance,
   getVaultPosition,
   musdAddressFor,
   vaultAddBacking,
@@ -128,6 +129,8 @@ function Dashboard() {
     const a = Number(pay) || 0;
     if (!a) return;
     void run(`Paid ${num(a, 2)} MUSD`, async (account, v, musd) => {
+      const held = await getMusdBalance(account, musd).catch(() => 0);
+      if (held < a) throw new Error(`You hold ${held} MUSD — less than this payment.`);
       await approveFirst(musd, v, account, pay);
       const hash = await vaultRepay(v, account, pay);
       logActivity("repay", a, "MUSD", "Paid down your loan", hash);
@@ -156,6 +159,8 @@ function Dashboard() {
       if (owed <= 0) throw new Error("That wallet has no loan.");
       if (Number(pos.loan.ratio) >= 110)
         throw new Error("That loan is still safe. Only loans under 110% can close.");
+      const held = await getMusdBalance(account, musd).catch(() => 0);
+      if (held < owed) throw new Error(`You hold ${held} MUSD — closing needs ${num(owed, 2)}.`);
       await approveFirst(musd, v, account, owed.toFixed(2));
       const hash = await vaultCloseLoan(v, account, close);
       logActivity("repay", owed, "MUSD", "Closed someone's unsafe loan, kept their Bitcoin", hash);

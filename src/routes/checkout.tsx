@@ -17,6 +17,7 @@ import {
 import {
   approveRouter,
   didSucceed,
+  getMusdBalance,
   musdAddressFor,
   payViaRouter,
   routerAddressFor,
@@ -85,11 +86,20 @@ function Checkout() {
     return { account: s.account, musd };
   };
 
+  const needFunds = async (account: string, musd: string) => {
+    const held = await getMusdBalance(account, musd).catch(() => 0);
+    if (held < inv.amount)
+      throw new Error(
+        `You hold ${held} MUSD — less than this bill. Get test MUSD first, then pay.`,
+      );
+  };
+
   const payDirect = async () => {
     setBusy(true);
     setErr(null);
     try {
       const { account, musd } = needMezo();
+      await needFunds(account, musd);
       const hash = await sendMusd(inv.to, inv.amount, musd, account);
       markPaid(hash, "Direct payment");
     } catch (e) {
@@ -107,6 +117,7 @@ function Checkout() {
       const chainId = s.chainId ?? 31611;
       const router = routerAddressFor(s.chainId);
       if (!router) throw new Error("Payment contract is not ready yet. Use direct payment.");
+      await needFunds(account, musd);
       const deadline = Math.floor(Date.now() / 1000) + 3600;
       const nonce = `${Date.now()}`;
       const signature = await signInvoice712(account, chainId, router, {

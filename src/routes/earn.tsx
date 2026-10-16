@@ -7,6 +7,7 @@ import { logActivity, num, setActivityStatus, useStore } from "@/lib/mezo";
 import {
   approveRouter,
   didSucceed,
+  getMusdBalance,
   getVaultPosition,
   musdAddressFor,
   vaultAddressFor,
@@ -75,6 +76,11 @@ function Earn() {
     try {
       const { account, musd } = need();
       if (!vault) throw new Error("The pool is not open yet.");
+      const held = await getMusdBalance(account, musd).catch(() => 0);
+      if (held < a)
+        throw new Error(
+          `You hold ${held} MUSD — less than this. Get test MUSD first (borrow on Mezo's test site), then lend it here.`,
+        );
       setMsg("Step 1 of 2: approving in your wallet…");
       const approval = await approveRouter(musd, vault, dep, account).catch((e) => {
         if (!/rejected|denied/i.test(e instanceof Error ? e.message : String(e))) throw e;
