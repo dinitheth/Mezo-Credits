@@ -1,8 +1,11 @@
 /**
  * On-chain layer. Wallet chain constants live in `src/lib/mezo.ts` (`MEZO`).
  * Token and contract addresses live here so wording changes never switch
- * networks. Reads use the wallet (`eth_call`); writes open the wallet.
+ * networks. Reads use the browser wallet when one is installed and the
+ * public Mezo RPC otherwise; writes open the connected wallet.
  */
+
+import { getWalletAdapter } from "./wallet-adapter";
 
 export const MUSD_TOKEN = {
   /** Mezo mainnet MUSD (18 decimals). */
@@ -140,11 +143,26 @@ function provider(): EthProvider | null {
   return e ?? null;
 }
 
+/** Public read endpoint used when no browser wallet is present. */
+const READ_RPC = "https://rpc.test.mezo.org";
+
+async function rpcCall(method: string, params: unknown[]): Promise<unknown> {
+  const res = await fetch(READ_RPC, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+  });
+  if (!res.ok) throw new Error(`Network read failed (${res.status}).`);
+  const j = (await res.json()) as { result?: unknown; error?: { message?: string } };
+  if (j.error) throw new Error(j.error.message ?? "Network read failed.");
+  return j.result;
+}
+
 async function ethCall(to: string, data: string): Promise<string> {
   const e = provider();
-  if (!e) throw new Error("No browser wallet found.");
-  const out = (await e.request({ method: "eth_call", params: [{ to, data }, "latest"] })) as string;
-  return out;
+  if (e)
+    return (await e.request({ method: "eth_call", params: [{ to, data }, "latest"] })) as string;
+  return (await rpcCall("eth_call", [{ to, data }, "latest"])) as string;
 }
 
 /** Real read: ERC-20 MUSD balance for `account` on the wallet's chain. */
@@ -175,8 +193,9 @@ export async function getChainId(): Promise<number> {
 
 export async function getBlockNumber(): Promise<bigint> {
   const e = provider();
-  if (!e) throw new Error("No browser wallet found.");
-  const hex = (await e.request({ method: "eth_blockNumber" })) as string;
+  const hex = e
+    ? ((await e.request({ method: "eth_blockNumber" })) as string)
+    : ((await rpcCall("eth_blockNumber", [])) as string);
   return BigInt(hex);
 }
 
@@ -184,13 +203,14 @@ export type TxReceipt = { status: string; blockNumber: string } | null;
 
 /** Read a payment receipt. Empty until the network confirms it. */
 export async function getTxReceipt(txHash: string): Promise<TxReceipt> {
-  const e = provider();
-  if (!e) return null;
   try {
-    const r = (await e.request({
-      method: "eth_getTransactionReceipt",
-      params: [txHash],
-    })) as TxReceipt;
+    const e = provider();
+    const r = e
+      ? ((await e.request({
+          method: "eth_getTransactionReceipt",
+          params: [txHash],
+        })) as TxReceipt)
+      : ((await rpcCall("eth_getTransactionReceipt", [txHash])) as TxReceipt);
     return r ?? null;
   } catch {
     return null;
@@ -219,6 +239,20 @@ export async function didSucceed(txHash: string): Promise<boolean | null> {
   }
 }
 
+/** Send one wallet transaction: through the global wallet kit, or the browser wallet. */
+async function sendTx(tx: {
+  from: string;
+  to: string;
+  data: string;
+  value?: string;
+}): Promise<string> {
+  const a = getWalletAdapter();
+  if (a) return a.sendTransaction(tx);
+  const e = provider();
+  if (!e) throw new Error("No browser wallet found.");
+  return (await e.request({ method: "eth_sendTransaction", params: [tx] })) as string;
+}
+
 /**
  * Real write: ERC-20 MUSD `transfer` through the connected wallet.
  * Returns the receipt hash.
@@ -229,17 +263,11 @@ export async function sendMusd(
   musd: string,
   from: string,
 ): Promise<string> {
-  const e = provider();
-  if (!e) throw new Error("No browser wallet found.");
   if (!/^0x[0-9a-fA-F]{40}$/.test(to)) throw new Error("Invalid recipient address.");
   const value = parseMUSD(amountMusd);
   if (value <= 0n) throw new Error("Amount must be above zero.");
   const data = `0x${SEL.transfer}${addrToWord(to)}${uintToWord(value)}`;
-  const hash = (await e.request({
-    method: "eth_sendTransaction",
-    params: [{ from, to: musd, data }],
-  })) as string;
-  return hash;
+  return sendTx({ from, to: musd, data });
 }
 
 // ---------------------------------------------------------------------------
@@ -291,9 +319,11 @@ export async function signInvoice712(
   verifyingContract: string,
   inv: Invoice712,
 ): Promise<string> {
+  const typed = invoiceTypedData(chainId, verifyingContract, inv);
+  const a = getWalletAdapter();
+  if (a) return a.signTypedData(account, typed);
   const e = provider();
   if (!e) throw new Error("No browser wallet found.");
-  const typed = invoiceTypedData(chainId, verifyingContract, inv);
   const sig = (await e.request({
     method: "eth_signTypedData_v4",
     params: [account, JSON.stringify(typed)],
@@ -363,12 +393,7 @@ export async function approveRouter(
     functionName: "approve",
     args: [router as `0x${string}`, parseMUSD(amountMusd)],
   });
-  const e = provider();
-  if (!e) throw new Error("No browser wallet found.");
-  return (await e.request({
-    method: "eth_sendTransaction",
-    params: [{ from, to: musd, data }],
-  })) as string;
+  return sendTx({ from, to: musd, data });
 }
 
 export type RouterPayment = {
@@ -405,12 +430,7 @@ export async function payViaRouter(
       p.sig as `0x${string}`,
     ],
   });
-  const e = provider();
-  if (!e) throw new Error("No browser wallet found.");
-  return (await e.request({
-    method: "eth_sendTransaction",
-    params: [{ from, to: router, data }],
-  })) as string;
+  return sendTx({ from, to: router, data });
 }
 
 // ---------------------------------------------------------------------------
@@ -559,7 +579,7 @@ async function vaultCall<T>(vault: string, functionName: string, args: unknown[]
   const data = encodeFunctionData({
     abi: VAULT_ABI,
     functionName: functionName as "loans",
-    args: args as never[],
+    args: args as never,
   });
   const raw = await ethCall(vault, data);
   return decodeFunctionResult({
@@ -585,12 +605,10 @@ async function vaultSend(
   value?: bigint,
 ): Promise<string> {
   const { encodeFunctionData } = await import("viem");
-  const data = encodeFunctionData({ abi: VAULT_ABI, functionName, args: args as never[] });
-  const e = provider();
-  if (!e) throw new Error("No browser wallet found.");
+  const data = encodeFunctionData({ abi: VAULT_ABI, functionName, args: args as never });
   const tx: { from: string; to: string; data: string; value?: string } = { from, to: vault, data };
   if (value !== undefined) tx.value = `0x${value.toString(16)}`;
-  return (await e.request({ method: "eth_sendTransaction", params: [tx] })) as string;
+  return sendTx(tx);
 }
 
 export type VaultLoan = {

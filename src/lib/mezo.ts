@@ -1,4 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { walletSwitchViaAdapter } from "./wallet-adapter";
 
 export const MEZO = {
   chainId: 31611,
@@ -23,8 +24,8 @@ export type Invoice = {
   amount: number;
   description: string;
   recipient: string;
-  paid?: boolean;
-  tx?: string;
+  paid?: boolean | undefined;
+  tx?: string | undefined;
 };
 export type ActivityKind =
   | "transfer"
@@ -265,7 +266,7 @@ export async function restoreWallet() {
     const accounts = (await e.request({ method: "eth_accounts" })) as string[];
     if (!accounts || accounts.length === 0) return false;
     const cid = parseInt((await e.request({ method: "eth_chainId" })) as string, 16);
-    setState({ account: accounts[0], chainId: cid });
+    setState({ account: accounts[0] ?? null, chainId: cid });
     return true;
   } catch {
     return false;
@@ -277,11 +278,15 @@ export async function connectWallet() {
   if (!e) throw new Error("No browser wallet found. Install MetaMask or another EVM wallet.");
   const [acc] = (await e.request({ method: "eth_requestAccounts" })) as string[];
   const cid = parseInt((await e.request({ method: "eth_chainId" })) as string, 16);
-  setState({ account: acc, chainId: cid });
+  setState({ account: acc ?? null, chainId: cid });
   watchWallet(e);
 }
 
 export async function switchToMezo() {
+  if (await walletSwitchViaAdapter(MEZO.chainId)) {
+    setState({ chainId: MEZO.chainId });
+    return;
+  }
   const e = eth();
   if (!e) throw new Error("No browser wallet found.");
   try {

@@ -50,6 +50,7 @@ Main network MUSD: `0xdD468A1DDc392dcdbEf6db6e34E89AA338F9F186`.
 - **Built with:** TanStack Start v1, React 19, Vite 8, Tailwind v4, `viem` (payment contract calls only), Solidity 0.8.20 (payment contract, no extra pieces).
 - **Proof:** payment contract above + its first deploy receipt `0x631a15b33f687cbe5120f3841f3e052f3afeaeb4a1eec50bec190fad70df5338` (block 16173807).
 - **Extra settings (optional):** `VITE_ROUTER_ADDRESS_TESTNET`, `VITE_ROUTER_ADDRESS_MAINNET`, `VITE_MEZO_TOKEN_TESTNET`, `VITE_MEZO_TOKEN_MAINNET`. See `.env.example`.
+- **Global wallet kit (optional):** set `VITE_DYNAMIC_ENVIRONMENT_ID` (from https://app.dynamic.xyz) to let people sign in with email or a wallet of their choice. Coinbase Wallet is left out on purpose. Without the setting, the app uses the built-in wallet connection.
 
 ## Checks before sending in
 

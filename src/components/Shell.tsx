@@ -12,6 +12,7 @@ import {
 } from "@/lib/mezo";
 import mezoLogo from "@/assets/mezoflow-logo.png";
 import { Btn } from "./ui-bits";
+import { DynamicConnectArea } from "./DynamicWallet";
 
 const THEME_KEY = "mezoflow-theme";
 
@@ -103,16 +104,20 @@ export function Shell({ children }: { children: ReactNode }) {
               {short(s.account)}
             </span>
           ) : (
-            <Btn
-              onClick={() =>
-                run(async () => {
-                  await connectWallet();
-                  await switchToMezo().catch(() => {});
-                })
+            <DynamicConnectArea
+              fallback={
+                <Btn
+                  onClick={() =>
+                    run(async () => {
+                      await connectWallet();
+                      await switchToMezo().catch(() => {});
+                    })
+                  }
+                >
+                  Connect wallet
+                </Btn>
               }
-            >
-              Connect wallet
-            </Btn>
+            />
           )}
         </div>
       </header>
