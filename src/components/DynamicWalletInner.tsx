@@ -106,7 +106,8 @@ export function DynamicWalletInner({ children }: { children: ReactNode }) {
         walletConnectors: [EthereumWalletConnectors],
         walletsFilter: (wallets) =>
           wallets.filter((w) => !/coinbase/i.test(w.key) && !/coinbase/i.test(w.name)),
-        initialAuthenticationMode: "connect-only",
+        siweStatement:
+          "Sign in to MezoFlow. This proves you own this wallet and does not move any money.",
       }}
     >
       <WalletSync />
