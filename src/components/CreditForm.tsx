@@ -7,9 +7,12 @@ import { cn } from "@/lib/utils";
 export function CreditForm({
   onBorrow,
   borrowing,
+  walletMusd,
 }: {
   onBorrow?: ((info: { btc: number; amount: number; tier: number }) => void) | undefined;
   borrowing?: boolean | undefined;
+  /** MUSD already in the connected wallet; undefined hides the line. */
+  walletMusd?: number | null | undefined;
 }) {
   const s = useStore();
   const [tier, setTier] = useState<(typeof TIERS)[number]>(TIERS[1]);
@@ -107,6 +110,14 @@ export function CreditForm({
             >
               {borrowing ? "Borrowing…" : `Borrow ${num(power, 2)} MUSD`}
             </Btn>
+          )}
+          {walletMusd !== undefined && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              In your wallet now:{" "}
+              <span className="font-mono text-foreground">
+                {walletMusd === null ? "…" : `${num(walletMusd, 2)} MUSD`}
+              </span>
+            </p>
           )}
         </div>
       )}

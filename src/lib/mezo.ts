@@ -245,14 +245,40 @@ type Eth = {
 const eth = (): Eth | undefined =>
   typeof window !== "undefined" ? (window as unknown as { ethereum?: Eth }).ethereum : undefined;
 
+let watching = false;
+function watchWallet(e: Eth) {
+  if (watching) return;
+  watching = true;
+  e.on?.("accountsChanged", (a: unknown) => setState({ account: (a as string[])[0] ?? null }));
+  e.on?.("chainChanged", (c: unknown) => setState({ chainId: parseInt(c as string, 16) }));
+}
+
+/**
+ * Quietly reconnect on page load using accounts the wallet already approved.
+ * No popup: eth_accounts only returns accounts the user already shared.
+ */
+export async function restoreWallet() {
+  const e = eth();
+  if (!e) return false;
+  watchWallet(e);
+  try {
+    const accounts = (await e.request({ method: "eth_accounts" })) as string[];
+    if (!accounts || accounts.length === 0) return false;
+    const cid = parseInt((await e.request({ method: "eth_chainId" })) as string, 16);
+    setState({ account: accounts[0], chainId: cid });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function connectWallet() {
   const e = eth();
   if (!e) throw new Error("No browser wallet found. Install MetaMask or another EVM wallet.");
   const [acc] = (await e.request({ method: "eth_requestAccounts" })) as string[];
   const cid = parseInt((await e.request({ method: "eth_chainId" })) as string, 16);
   setState({ account: acc, chainId: cid });
-  e.on?.("accountsChanged", (a: unknown) => setState({ account: (a as string[])[0] ?? null }));
-  e.on?.("chainChanged", (c: unknown) => setState({ chainId: parseInt(c as string, 16) }));
+  watchWallet(e);
 }
 
 export async function switchToMezo() {

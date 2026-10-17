@@ -8,8 +8,10 @@ import { Btn, Card } from "@/components/ui-bits";
 import { logActivity, num, setActivityStatus, useStore } from "@/lib/mezo";
 import {
   didSucceed,
+  getMusdBalance,
   getVaultGlobals,
   getVaultPosition,
+  musdAddressFor,
   parseMUSD,
   vaultAddressFor,
   vaultOpenLoan,
@@ -44,6 +46,7 @@ function Borrow() {
   const vault = vaultAddressFor(s.chainId ?? 31611);
   const onMezo = !s.chainId || s.chainId === 31611 || s.chainId === 31612;
   const [poolSize, setPoolSize] = useState<number | null>(null);
+  const [walletMusd, setWalletMusd] = useState<number | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -57,6 +60,25 @@ function Borrow() {
       live = false;
     };
   }, [vault]);
+
+  useEffect(() => {
+    let live = true;
+    const musd = musdAddressFor(s.chainId ?? 31611);
+    if (!s.account || !musd) {
+      setWalletMusd(null);
+      return;
+    }
+    getMusdBalance(s.account, musd)
+      .then((b) => {
+        if (live) setWalletMusd(b);
+      })
+      .catch(() => {
+        if (live) setWalletMusd(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, [s.account, s.chainId]);
 
   const borrow = async (info: { btc: number; amount: number; tier: number }) => {
     setBusy(true);
@@ -94,6 +116,12 @@ function Borrow() {
         if (ok === false) {
           setActivityStatus(hash, "failed");
           setMsg("That did not go through (see Past payments). Nothing moved.");
+        } else if (ok) {
+          const musd = musdAddressFor(s.chainId ?? 31611);
+          if (s.account && musd)
+            void getMusdBalance(s.account, musd)
+              .then(setWalletMusd)
+              .catch(() => {});
         }
       });
     } catch (e) {
@@ -157,11 +185,18 @@ function Borrow() {
               <span className="font-mono text-foreground">
                 {poolSize === null ? "…" : `${num(poolSize, 2)} MUSD`}
               </span>{" "}
-              right now
+              right now · you hold{" "}
+              <span className="font-mono text-foreground">
+                {!s.account ? "—" : walletMusd === null ? "…" : `${num(walletMusd, 2)} MUSD`}
+              </span>
               {!onMezo && " · switch to Mezo to borrow"}
             </p>
           )}
-          <CreditForm onBorrow={vault && onMezo ? borrow : undefined} borrowing={busy} />
+          <CreditForm
+            onBorrow={vault && onMezo ? borrow : undefined}
+            borrowing={busy}
+            walletMusd={walletMusd}
+          />
         </Card>
       </div>
       <div className="mt-4">
