@@ -103,6 +103,7 @@ export function DynamicWalletInner({ children }: { children: ReactNode }) {
       settings={{
         environmentId: DYNAMIC_ENV_ID,
         appName: "MezoFlow",
+        useMetamaskSdk: false,
         walletConnectors: [EthereumWalletConnectors],
         walletsFilter: (wallets) =>
           wallets.filter((w) => !/coinbase/i.test(w.key) && !/coinbase/i.test(w.name)),

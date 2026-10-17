@@ -273,6 +273,26 @@ export async function restoreWallet() {
   }
 }
 
+/**
+ * Reconnect quietly on page load, retrying briefly in case the wallet
+ * extension is still starting up. Never shows a popup.
+ */
+export function autoRestore() {
+  let tries = 0;
+  const attempt = async () => {
+    tries += 1;
+    const ok = (await restoreWallet()) || Boolean(getState().account);
+    if (ok || tries >= 8) {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+    }
+  };
+  const onFocus = () => void attempt();
+  const timer = window.setInterval(() => void attempt(), 1500);
+  window.addEventListener("focus", onFocus);
+  void attempt();
+}
+
 export async function connectWallet() {
   const e = eth();
   if (!e) throw new Error("No browser wallet found. Install MetaMask or another EVM wallet.");

@@ -3,9 +3,9 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Moon, Sun } from "lucide-react";
 import {
   MEZO,
+  autoRestore,
   connectWallet,
   hydrateStore,
-  restoreWallet,
   short,
   switchToMezo,
   useStore,
@@ -22,7 +22,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   useEffect(() => {
     hydrateStore();
-    void restoreWallet();
+    autoRestore();
     const saved = localStorage.getItem(THEME_KEY);
     if (saved === "dark" || saved === "light") {
       setTheme(saved);
