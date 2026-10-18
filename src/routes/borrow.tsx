@@ -196,6 +196,7 @@ function Borrow() {
             onBorrow={vault && onMezo ? borrow : undefined}
             borrowing={busy}
             walletMusd={walletMusd}
+            poolSize={poolSize}
           />
         </Card>
       </div>

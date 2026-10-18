@@ -8,11 +8,14 @@ export function CreditForm({
   onBorrow,
   borrowing,
   walletMusd,
+  poolSize,
 }: {
   onBorrow?: ((info: { btc: number; amount: number; tier: number }) => void) | undefined;
   borrowing?: boolean | undefined;
   /** MUSD already in the connected wallet; undefined hides the line. */
   walletMusd?: number | null | undefined;
+  /** Current pool balance; undefined hides the line. */
+  poolSize?: number | null | undefined;
 }) {
   const s = useStore();
   const [tier, setTier] = useState<(typeof TIERS)[number]>(TIERS[1]);
@@ -20,7 +23,9 @@ export function CreditForm({
   const btc = Number(btcIn) || 0;
   const price = s.btcPrice;
 
-  const power = price > 0 ? (btc * price * 100) / tier.cr : 0;
+  const rawPower = price > 0 ? (btc * price * 100) / tier.cr : 0;
+  const power =
+    poolSize !== undefined && poolSize !== null ? Math.min(rawPower, poolSize) : rawPower;
   const lp = liqPrice(btc, power);
 
   return (
@@ -102,6 +107,11 @@ export function CreditForm({
         <div className="rounded-lg border border-primary/40 bg-primary/5 p-4 text-center">
           <p className="text-sm text-muted-foreground">Your number</p>
           <p className="font-mono text-2xl text-success">{num(power, 2)} MUSD</p>
+          {poolSize !== undefined && poolSize !== null && rawPower > poolSize && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Pool limit: {num(poolSize, 2)} MUSD
+            </p>
+          )}
           {onBorrow && (
             <Btn
               className="mt-3 w-full py-3"
