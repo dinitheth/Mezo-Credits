@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Btn, Field, Gauge, Stat, Tip, cleanNum, inputCls } from "./ui-bits";
 import { MIN_CR, TIERS, liqPrice, num, usd, useStore } from "@/lib/mezo";
 import { cn } from "@/lib/utils";
@@ -20,9 +20,19 @@ export function CreditForm({
   const s = useStore();
   const [tier, setTier] = useState<(typeof TIERS)[number]>(TIERS[1]);
   const [btcIn, setBtcIn] = useState("0.05");
-  const btc = Number(btcIn) || 0;
   const price = s.btcPrice;
 
+  const maxBtc =
+    price > 0 && poolSize !== undefined && poolSize !== null
+      ? Math.floor(((poolSize * tier.cr) / (price * 100)) * 1e6) / 1e6
+      : null;
+
+  useEffect(() => {
+    if (maxBtc === null) return;
+    if ((Number(btcIn) || 0) > maxBtc) setBtcIn(maxBtc.toFixed(6));
+  }, [maxBtc, btcIn]);
+
+  const btc = Math.min(Number(btcIn) || 0, maxBtc ?? Infinity);
   const rawPower = price > 0 ? (btc * price * 100) / tier.cr : 0;
   const power =
     poolSize !== undefined && poolSize !== null ? Math.min(rawPower, poolSize) : rawPower;
@@ -63,6 +73,12 @@ export function CreditForm({
           onChange={(e) => setBtcIn(cleanNum(e.target.value))}
         />
       </Field>
+      {maxBtc !== null && poolSize !== undefined && poolSize !== null && (
+        <p className="-mt-3 text-xs text-muted-foreground">
+          The pool holds {num(poolSize, 2)} MUSD, so at this safety level you can lock up to{" "}
+          {maxBtc.toFixed(6)} BTC here.
+        </p>
+      )}
 
       <p className="text-sm text-muted-foreground">
         Bitcoin price right now:{" "}
