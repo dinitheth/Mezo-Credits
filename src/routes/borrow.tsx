@@ -6,6 +6,7 @@ import { CreditForm } from "@/components/CreditForm";
 import { OnchainPanel } from "@/components/OnchainPanel";
 import { Btn, Card } from "@/components/ui-bits";
 import { logActivity, num, setActivityStatus, useStore } from "@/lib/mezo";
+import { friendly } from "@/lib/errors";
 import {
   didSucceed,
   getMusdBalance,
@@ -125,7 +126,7 @@ function Borrow() {
         }
       });
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Borrowing did not go through. Try again.");
+      setErr(friendly(e));
     } finally {
       setBusy(false);
     }

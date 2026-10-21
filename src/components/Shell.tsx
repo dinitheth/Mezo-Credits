@@ -13,6 +13,7 @@ import {
 import mezoLogo from "@/assets/mezoflow-logo.png";
 import { Btn } from "./ui-bits";
 import { DynamicConnectArea } from "./DynamicWallet";
+import { friendly } from "@/lib/errors";
 
 const THEME_KEY = "mezoflow-theme";
 
@@ -39,7 +40,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const run = (f: () => Promise<void>) =>
     f()
       .then(() => setErr(null))
-      .catch((e) => setErr(e.message ?? String(e)));
+      .catch((e) => setErr(friendly(e)));
   const nav = "rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground";
   const active = { className: "bg-secondary text-foreground" };
   return (
@@ -76,6 +77,14 @@ export function Shell({ children }: { children: ReactNode }) {
           </Link>
         </nav>
         <div className="ml-auto flex items-center gap-2">
+          <a
+            href="https://faucet.test.mezo.org/"
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-lg border px-3 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground"
+          >
+            Faucet
+          </a>
           <Btn
             variant="ghost"
             className="border"
@@ -105,6 +114,7 @@ export function Shell({ children }: { children: ReactNode }) {
             </span>
           ) : (
             <DynamicConnectArea
+              remembered={s.lastWallet}
               fallback={
                 <Btn
                   onClick={() =>
@@ -114,7 +124,7 @@ export function Shell({ children }: { children: ReactNode }) {
                     })
                   }
                 >
-                  Connect wallet
+                  {s.lastWallet ? `Reconnect ${short(s.lastWallet)}` : "Connect wallet"}
                 </Btn>
               }
             />

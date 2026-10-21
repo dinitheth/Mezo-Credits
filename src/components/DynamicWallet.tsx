@@ -24,8 +24,16 @@ export function DynamicWalletRoot({ children }: { children: ReactNode }) {
 }
 
 /** Connect button slot for the header; shows `fallback` until the kit loads. */
-export function DynamicConnectArea({ fallback }: { fallback: ReactNode }) {
-  const [Comp, setComp] = useState<ComponentType | null>(null);
+export function DynamicConnectArea({
+  fallback,
+  remembered,
+}: {
+  fallback: ReactNode;
+  remembered?: string | null | undefined;
+}) {
+  const [Comp, setComp] = useState<ComponentType<{
+    remembered?: string | null | undefined;
+  }> | null>(null);
   useEffect(() => {
     if (!dynamicWalletEnabled) return;
     let live = true;
@@ -37,5 +45,5 @@ export function DynamicConnectArea({ fallback }: { fallback: ReactNode }) {
     };
   }, []);
   if (!dynamicWalletEnabled || !Comp) return <>{fallback}</>;
-  return <Comp />;
+  return <Comp remembered={remembered} />;
 }

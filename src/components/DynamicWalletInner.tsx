@@ -1,10 +1,32 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { DynamicContextProvider, useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import { EthereumWalletConnectors, isEthereumWallet } from "@dynamic-labs/ethereum";
+import { defineChain } from "viem";
 
 import { Btn } from "./ui-bits";
-import { setState } from "@/lib/mezo";
+import { setState, short } from "@/lib/mezo";
 import { DYNAMIC_ENV_ID, setWalletAdapter } from "@/lib/wallet-adapter";
+
+/** Mezo networks, for wallet calls that need a chain attached. */
+const MEZO_CHAINS = {
+  31611: defineChain({
+    id: 31611,
+    name: "Mezo Testnet",
+    nativeCurrency: { name: "Bitcoin", symbol: "BTC", decimals: 18 },
+    rpcUrls: { default: { http: ["https://rpc.test.mezo.org"] } },
+    blockExplorers: { default: { name: "Mezo Explorer", url: "https://explorer.test.mezo.org" } },
+    testnet: true,
+  }),
+  31612: defineChain({
+    id: 31612,
+    name: "Mezo",
+    nativeCurrency: { name: "Bitcoin", symbol: "BTC", decimals: 18 },
+    rpcUrls: { default: { http: ["https://rpc.mainnet.mezo.org"] } },
+    blockExplorers: { default: { name: "Mezo Explorer", url: "https://explorer.mezo.org" } },
+  }),
+} as const;
+
+type MezoChain = (typeof MEZO_CHAINS)[keyof typeof MEZO_CHAINS];
 
 /** The signer needs big integers for number fields; raw wallet calls take strings. */
 function normalizeTyped(typed: unknown): unknown {
@@ -31,11 +53,10 @@ function normalizeTyped(typed: unknown): unknown {
 
 /** Keeps the app store in step with the connected wallet, and wires up writes. */
 function WalletSync() {
-  const { primaryWallet, sdkHasLoaded } = useDynamicContext();
+  const { primaryWallet } = useDynamicContext();
   const syncedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!sdkHasLoaded) return;
     if (!primaryWallet) {
       if (syncedRef.current) {
         syncedRef.current = null;
@@ -60,21 +81,35 @@ function WalletSync() {
         syncedRef.current = address;
         const flexible = wc as unknown as {
           sendTransaction: (args: {
+            chain?: MezoChain;
             to: `0x${string}`;
             data: `0x${string}`;
             value?: bigint | undefined;
           }) => Promise<string>;
           signTypedData: (args: unknown) => Promise<string>;
+          request: (args: { method: string; params?: unknown }) => Promise<unknown>;
         };
         setWalletAdapter({
-          sendTransaction: (tx) =>
-            flexible.sendTransaction({
+          sendTransaction: async (tx) => {
+            const chain = MEZO_CHAINS[chainId as keyof typeof MEZO_CHAINS] ?? MEZO_CHAINS[31611];
+            return flexible.sendTransaction({
+              chain,
               to: tx.to as `0x${string}`,
               data: tx.data as `0x${string}`,
               value: tx.value === undefined ? undefined : BigInt(tx.value),
-            }),
+            });
+          },
           signTypedData: (_account, typed) => flexible.signTypedData(normalizeTyped(typed)),
-          switchNetwork: (id) => wc.switchChain({ id }),
+          switchNetwork: async (id) => {
+            try {
+              await wc.switchChain({ id });
+            } catch {
+              await flexible.request({
+                method: "wallet_switchEthereumChain",
+                params: [{ chainId: `0x${id.toString(16)}` }],
+              });
+            }
+          },
         });
       } catch {
         // Wallet is still spinning up; reads keep working through the public network.
@@ -83,18 +118,22 @@ function WalletSync() {
     return () => {
       live = false;
     };
-  }, [primaryWallet, sdkHasLoaded]);
+  }, [primaryWallet]);
 
   return null;
 }
 
-function ConnectButton() {
+function ConnectButton({ remembered }: { remembered?: string | null | undefined }) {
   const { setShowAuthFlow } = useDynamicContext();
-  return <Btn onClick={() => setShowAuthFlow(true)}>Connect wallet</Btn>;
+  return (
+    <Btn onClick={() => setShowAuthFlow(true)}>
+      {remembered ? `Reconnect ${short(remembered)}` : "Connect wallet"}
+    </Btn>
+  );
 }
 
-export function DynamicConnectArea() {
-  return <ConnectButton />;
+export function DynamicConnectArea({ remembered }: { remembered?: string | null | undefined }) {
+  return <ConnectButton remembered={remembered} />;
 }
 
 export function DynamicWalletInner({ children }: { children: ReactNode }) {

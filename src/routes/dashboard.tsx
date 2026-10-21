@@ -4,9 +4,11 @@ import { Shell } from "@/components/Shell";
 import { OnchainPanel } from "@/components/OnchainPanel";
 import { Btn, Card, Field, Stat, cleanNum, inputCls } from "@/components/ui-bits";
 import { MEZO, logActivity, num, setActivityStatus, usePriceFeed, useStore } from "@/lib/mezo";
+import { friendly } from "@/lib/errors";
 import {
   approveRouter,
   didSucceed,
+  getBtcBalance,
   getMusdBalance,
   getVaultPosition,
   musdAddressFor,
@@ -41,6 +43,8 @@ function useLoan() {
   const onMezo = !s.chainId || s.chainId === 31611 || s.chainId === 31612;
   const [loan, setLoan] = useState<VaultLoan | null>(null);
   const [poolValue, setPoolValue] = useState(0);
+  const [walletBtc, setWalletBtc] = useState<number | null>(null);
+  const [walletMusd, setWalletMusd] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const refresh = async () => {
     if (!vault || !s.account) {
@@ -52,6 +56,13 @@ function useLoan() {
       const pos = await getVaultPosition(vault, s.account);
       setLoan(pos.loan.liveOwed > 0n || pos.loan.backing > 0n ? pos.loan : null);
       setPoolValue(Number(pos.poolValue) / 1e18);
+      const btc = await getBtcBalance(s.account).catch(() => null);
+      setWalletBtc(btc);
+      const musd = musdAddressFor(s.chainId);
+      if (musd) {
+        const held = await getMusdBalance(s.account, musd).catch(() => null);
+        setWalletMusd(held);
+      }
     } catch {
       setLoan(null);
     } finally {
@@ -62,13 +73,13 @@ function useLoan() {
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vault, s.account]);
-  return { vault, onMezo, loan, poolValue, loading, refresh };
+  return { vault, onMezo, loan, poolValue, walletBtc, walletMusd, loading, refresh };
 }
 
 function Dashboard() {
   const s = useStore();
   usePriceFeed(true);
-  const { vault, onMezo, loan, poolValue, loading, refresh } = useLoan();
+  const { vault, onMezo, loan, poolValue, walletBtc, walletMusd, loading, refresh } = useLoan();
   const [add, setAdd] = useState("");
   const [pay, setPay] = useState("");
   const [take, setTake] = useState("");
@@ -99,7 +110,7 @@ function Dashboard() {
         }
       });
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "That did not go through. Try again.");
+      setErr(friendly(e));
     } finally {
       setBusy(false);
     }
@@ -107,10 +118,7 @@ function Dashboard() {
 
   const approveFirst = async (musd: string, v: string, account: string, amount: string) => {
     setMsg("Step 1 of 2: approving in your wallet…");
-    const approval = await approveRouter(musd, v, amount, account).catch((e) => {
-      if (!/rejected|denied/i.test(e instanceof Error ? e.message : String(e))) throw e;
-      throw new Error("You said no in your wallet. Nothing moved.");
-    });
+    const approval = await approveRouter(musd, v, amount, account);
     setMsg("Waiting on step 1…");
     await waitForReceipt(approval);
     setMsg("Step 2 of 2: sending it…");
@@ -119,6 +127,10 @@ function Dashboard() {
   const doAdd = () => {
     const a = Number(add) || 0;
     if (!a) return;
+    if (walletBtc !== null && a > walletBtc) {
+      setErr(`You have ${num(walletBtc, 4)} BTC in your wallet.`);
+      return;
+    }
     void run(`Locked ${a} more Bitcoin`, async (account, v) => {
       const hash = await vaultAddBacking(v, account, add);
       logActivity("add_collateral", a, "BTC", "Added to your loan", hash);
@@ -142,6 +154,12 @@ function Dashboard() {
   const doTake = () => {
     const a = Number(take) || 0;
     if (!a) return;
+    if (a > takeMax) {
+      setErr(
+        `That would push your safety under 150%. You can take back up to ${num(takeMax, 6)} BTC.`,
+      );
+      return;
+    }
     void run(`Took back ${a} Bitcoin`, async (account, v) => {
       const hash = await vaultTakeBacking(v, account, take);
       logActivity("withdraw_collateral", a, "BTC", "Took back from your loan", hash);
@@ -172,6 +190,10 @@ function Dashboard() {
 
   const ratio = loan ? Number(loan.ratio) : 0;
   const danger = loan !== null && ratio < 150;
+  const takeMax =
+    loan && s.btcPrice > 0
+      ? Math.max(0, fmt(loan.backing) - (fmt(loan.liveOwed) * 1.5) / s.btcPrice)
+      : 0;
 
   return (
     <Shell>
@@ -269,48 +291,70 @@ function Dashboard() {
           <Card>
             <h2 className="mb-4 font-semibold">Do something</h2>
             <div className="space-y-4">
-              <Field label="Lock more Bitcoin">
-                <div className="flex gap-2">
-                  <input
-                    className={inputCls}
-                    inputMode="decimal"
-                    value={add}
-                    onChange={(e) => setAdd(e.target.value.replace(/[^0-9.]/g, ""))}
-                    placeholder="0.0"
-                  />
-                  <Btn onClick={doAdd} disabled={busy}>
-                    Add
-                  </Btn>
-                </div>
-              </Field>
-              <Field label="Pay down MUSD">
-                <div className="flex gap-2">
-                  <input
-                    className={inputCls}
-                    inputMode="decimal"
-                    value={pay}
-                    onChange={(e) => setPay(e.target.value.replace(/[^0-9.]/g, ""))}
-                    placeholder="0.00"
-                  />
-                  <Btn variant="green" onClick={doPay} disabled={busy}>
-                    Pay
-                  </Btn>
-                </div>
-              </Field>
-              <Field label="Take back Bitcoin">
-                <div className="flex gap-2">
-                  <input
-                    className={inputCls}
-                    inputMode="decimal"
-                    value={take}
-                    onChange={(e) => setTake(e.target.value.replace(/[^0-9.]/g, ""))}
-                    placeholder="0.0"
-                  />
-                  <Btn variant="ghost" onClick={doTake} disabled={busy}>
-                    Take
-                  </Btn>
-                </div>
-              </Field>
+              <div>
+                <Field label="Lock more Bitcoin">
+                  <div className="flex gap-2">
+                    <input
+                      className={inputCls}
+                      inputMode="decimal"
+                      value={add}
+                      onChange={(e) => setAdd(e.target.value.replace(/[^0-9.]/g, ""))}
+                      placeholder="0.0"
+                    />
+                    <Btn onClick={doAdd} disabled={busy}>
+                      Add
+                    </Btn>
+                  </div>
+                </Field>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Available in your wallet:{" "}
+                  <span className="font-mono text-foreground">
+                    {walletBtc === null ? "…" : `${num(walletBtc, 4)} BTC`}
+                  </span>
+                </p>
+              </div>
+              <div>
+                <Field label="Pay down MUSD">
+                  <div className="flex gap-2">
+                    <input
+                      className={inputCls}
+                      inputMode="decimal"
+                      value={pay}
+                      onChange={(e) => setPay(e.target.value.replace(/[^0-9.]/g, ""))}
+                      placeholder="0.00"
+                    />
+                    <Btn variant="green" onClick={doPay} disabled={busy}>
+                      Pay
+                    </Btn>
+                  </div>
+                </Field>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Available in your wallet:{" "}
+                  <span className="font-mono text-foreground">
+                    {walletMusd === null ? "…" : `${num(walletMusd, 2)} MUSD`}
+                  </span>
+                </p>
+              </div>
+              <div>
+                <Field label="Take back Bitcoin">
+                  <div className="flex gap-2">
+                    <input
+                      className={inputCls}
+                      inputMode="decimal"
+                      value={take}
+                      onChange={(e) => setTake(e.target.value.replace(/[^0-9.]/g, ""))}
+                      placeholder="0.0"
+                    />
+                    <Btn variant="ghost" onClick={doTake} disabled={busy}>
+                      Take
+                    </Btn>
+                  </div>
+                </Field>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  You can take back up to{" "}
+                  <span className="font-mono text-foreground">{num(takeMax, 6)} BTC</span>
+                </p>
+              </div>
               {msg && (
                 <p className="text-xs text-success" aria-live="polite">
                   {msg}

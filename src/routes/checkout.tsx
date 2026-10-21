@@ -25,6 +25,7 @@ import {
   signInvoice712,
   waitForReceipt,
 } from "@/lib/onchain";
+import { friendly } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 
 const search = z.object({
@@ -103,7 +104,7 @@ function Checkout() {
       const hash = await sendMusd(inv.to, inv.amount, musd, account);
       markPaid(hash, "Direct payment");
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Payment did not go through. Try again.");
+      setErr(friendly(e));
     } finally {
       setBusy(false);
     }
@@ -128,10 +129,7 @@ function Checkout() {
         deadline,
         nonce,
       });
-      const approval = await approveRouter(musd, router, inv.amount, account).catch((e) => {
-        if (/rejected|denied/i.test(e instanceof Error ? e.message : String(e))) throw e;
-        throw new Error("You said no in your wallet. Nothing moved.");
-      });
+      const approval = await approveRouter(musd, router, inv.amount, account);
       await waitForReceipt(approval);
       const hash = await payViaRouter(
         router,
@@ -149,7 +147,7 @@ function Checkout() {
       );
       markPaid(hash, "Paid through the payment contract");
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Payment did not go through. Try again.");
+      setErr(friendly(e));
     } finally {
       setBusy(false);
     }

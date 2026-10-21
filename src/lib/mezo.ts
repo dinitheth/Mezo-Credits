@@ -61,6 +61,8 @@ type State = {
   priceLive: boolean;
   invoices: Invoice[];
   activity: Activity[];
+  /** Last wallet this browser was connected with, for a one-tap reconnect. */
+  lastWallet: string | null;
 };
 
 let state: State = {
@@ -70,6 +72,7 @@ let state: State = {
   priceLive: false,
   invoices: [],
   activity: [],
+  lastWallet: null,
 };
 const subs = new Set<() => void>();
 const emit = () => {
@@ -85,6 +88,11 @@ const emit = () => {
 };
 export function setState(p: Partial<State>) {
   state = { ...state, ...p };
+  if (typeof window !== "undefined" && p.account !== undefined) {
+    if (p.account) localStorage.setItem("mezoflow_last_wallet", p.account);
+    else localStorage.removeItem("mezoflow_last_wallet");
+    state.lastWallet = p.account ?? null;
+  }
   emit();
 }
 export function getState() {
@@ -146,6 +154,12 @@ export function hydrateStore() {
     }
   } catch {
     // Corrupted persist is ignored; state stays at defaults.
+  }
+  try {
+    const last = localStorage.getItem("mezoflow_last_wallet");
+    if (last && /^0x[0-9a-fA-F]{40}$/.test(last)) state = { ...state, lastWallet: last };
+  } catch {
+    // Storage unavailable: reconnect button simply stays hidden.
   }
   subs.forEach((s) => s());
 }
@@ -243,8 +257,40 @@ type Eth = {
   request: (a: { method: string; params?: unknown }) => Promise<unknown>;
   on?: (e: string, f: (x: unknown) => void) => void;
 };
-const eth = (): Eth | undefined =>
-  typeof window !== "undefined" ? (window as unknown as { ethereum?: Eth }).ethereum : undefined;
+
+/** The wallet actually in use, once we know which one has the account. */
+let activeProvider: Eth | null = null;
+
+/** Every wallet installed in this browser, via EIP-6963 plus the older single-provider slot. */
+function installedWallets(): Eth[] {
+  if (typeof window === "undefined") return [];
+  const found: Eth[] = [];
+  const seen = new Set<Eth>();
+  const onAnnounce = (ev: Event) => {
+    const p = (ev as CustomEvent<{ provider?: Eth }>).detail?.provider;
+    if (p && !seen.has(p)) {
+      seen.add(p);
+      found.push(p);
+    }
+  };
+  window.addEventListener("eip6963:announceProvider", onAnnounce);
+  window.dispatchEvent(new Event("eip6963:requestProvider"));
+  window.removeEventListener("eip6963:announceProvider", onAnnounce);
+  const legacy = (window as unknown as { ethereum?: Eth & { providers?: Eth[] } }).ethereum;
+  for (const p of legacy?.providers ?? []) {
+    if (!seen.has(p)) {
+      seen.add(p);
+      found.push(p);
+    }
+  }
+  if (legacy && !seen.has(legacy)) found.push(legacy);
+  return found;
+}
+
+const eth = (): Eth | undefined => {
+  if (typeof window === "undefined") return undefined;
+  return activeProvider ?? (window as unknown as { ethereum?: Eth }).ethereum;
+};
 
 let watching = false;
 function watchWallet(e: Eth) {
@@ -256,21 +302,26 @@ function watchWallet(e: Eth) {
 
 /**
  * Quietly reconnect on page load using accounts the wallet already approved.
+ * Checks every installed wallet, so it works even with several installed.
  * No popup: eth_accounts only returns accounts the user already shared.
  */
 export async function restoreWallet() {
-  const e = eth();
-  if (!e) return false;
-  watchWallet(e);
-  try {
-    const accounts = (await e.request({ method: "eth_accounts" })) as string[];
-    if (!accounts || accounts.length === 0) return false;
-    const cid = parseInt((await e.request({ method: "eth_chainId" })) as string, 16);
-    setState({ account: accounts[0] ?? null, chainId: cid });
-    return true;
-  } catch {
-    return false;
+  const wallets = installedWallets();
+  for (const p of wallets) {
+    try {
+      const accounts = (await p.request({ method: "eth_accounts" })) as string[];
+      const first = accounts?.[0];
+      if (!first) continue;
+      activeProvider = p;
+      watchWallet(p);
+      const cid = parseInt((await p.request({ method: "eth_chainId" })) as string, 16);
+      setState({ account: first, chainId: cid });
+      return true;
+    } catch {
+      // This wallet refused; try the next one.
+    }
   }
+  return false;
 }
 
 /**
@@ -294,8 +345,9 @@ export function autoRestore() {
 }
 
 export async function connectWallet() {
-  const e = eth();
+  const e = eth() ?? installedWallets()[0];
   if (!e) throw new Error("No browser wallet found. Install MetaMask or another EVM wallet.");
+  activeProvider = e;
   const [acc] = (await e.request({ method: "eth_requestAccounts" })) as string[];
   const cid = parseInt((await e.request({ method: "eth_chainId" })) as string, 16);
   setState({ account: acc ?? null, chainId: cid });

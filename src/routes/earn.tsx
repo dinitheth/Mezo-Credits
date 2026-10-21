@@ -4,6 +4,7 @@ import { Shell } from "@/components/Shell";
 import { OnchainPanel } from "@/components/OnchainPanel";
 import { Btn, Card, Field, Stat, cleanNum, inputCls } from "@/components/ui-bits";
 import { logActivity, num, setActivityStatus, useStore } from "@/lib/mezo";
+import { friendly } from "@/lib/errors";
 import {
   approveRouter,
   didSucceed,
@@ -38,6 +39,7 @@ function Earn() {
   const [poolValue, setPoolValue] = useState(0);
   const [shares, setShares] = useState(0n);
   const [poolSize, setPoolSize] = useState(0);
+  const [walletMusd, setWalletMusd] = useState<number | null>(null);
   const [dep, setDep] = useState("");
   const [wd, setWd] = useState("");
   const [busy, setBusy] = useState(false);
@@ -49,7 +51,15 @@ function Earn() {
     try {
       const g = await getVaultGlobals(vault);
       setPoolSize(Number(g.poolBalance) / 1e18);
-      if (!s.account) return;
+      if (!s.account) {
+        setWalletMusd(null);
+        return;
+      }
+      const musd = musdAddressFor(s.chainId);
+      if (musd) {
+        const held = await getMusdBalance(s.account, musd).catch(() => null);
+        setWalletMusd(held);
+      }
       const pos = await getVaultPosition(vault, s.account);
       setPoolValue(Number(pos.poolValue) / 1e18);
       setShares(pos.shares);
@@ -86,10 +96,7 @@ function Earn() {
           `You hold ${held} MUSD — less than this. Get test MUSD first (borrow on Mezo's test site), then lend it here.`,
         );
       setMsg("Step 1 of 2: approving in your wallet…");
-      const approval = await approveRouter(musd, vault, dep, account).catch((e) => {
-        if (!/rejected|denied/i.test(e instanceof Error ? e.message : String(e))) throw e;
-        throw new Error("You said no in your wallet. Nothing moved.");
-      });
+      const approval = await approveRouter(musd, vault, dep, account);
       setMsg("Waiting on step 1…");
       await waitForReceipt(approval);
       setMsg("Step 2 of 2: putting it in…");
@@ -105,7 +112,7 @@ function Earn() {
         }
       });
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "That did not go through. Try again.");
+      setErr(friendly(e));
     } finally {
       setBusy(false);
     }
@@ -140,7 +147,7 @@ function Earn() {
         }
       });
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "That did not go through. Try again.");
+      setErr(friendly(e));
     } finally {
       setBusy(false);
     }
@@ -198,6 +205,12 @@ function Earn() {
                   </Btn>
                 </div>
               </Field>
+              <p className="text-xs text-muted-foreground">
+                In your wallet:{" "}
+                <span className="font-mono text-foreground">
+                  {!s.account ? "—" : walletMusd === null ? "…" : `${num(walletMusd, 2)} MUSD`}
+                </span>
+              </p>
             </Card>
             <Card className="space-y-3">
               <h2 className="font-semibold">Take back</h2>
@@ -215,6 +228,10 @@ function Earn() {
                   </Btn>
                 </div>
               </Field>
+              <p className="text-xs text-muted-foreground">
+                Yours to take:{" "}
+                <span className="font-mono text-foreground">{num(poolValue, 2)} MUSD</span>
+              </p>
             </Card>
           </div>
           {msg && (

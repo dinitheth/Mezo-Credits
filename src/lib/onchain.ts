@@ -184,6 +184,15 @@ export async function getMezoTokenBalance(
   return Number(decodeUint256(raw)) / 1e18;
 }
 
+/** Real read: Bitcoin (the native coin on Mezo) in the connected wallet. */
+export async function getBtcBalance(account: string): Promise<number> {
+  const e = provider();
+  const hex = e
+    ? ((await e.request({ method: "eth_getBalance", params: [account, "latest"] })) as string)
+    : ((await rpcCall("eth_getBalance", [account, "latest"])) as string);
+  return Number(BigInt(hex)) / 1e18;
+}
+
 export async function getChainId(): Promise<number> {
   const e = provider();
   if (!e) throw new Error("No browser wallet found.");
