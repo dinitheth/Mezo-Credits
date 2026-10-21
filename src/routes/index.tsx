@@ -75,9 +75,9 @@ function Landing() {
             your Bitcoin could borrow, too.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
-            <Link to="/pay">
+            <Link to="/earn">
               <Btn className="gap-2 px-6 py-3 text-base">
-                Make a payment link <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                Grow your money <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Btn>
             </Link>
             <Link
