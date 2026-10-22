@@ -247,24 +247,11 @@ function Borrow() {
               </p>
             </div>
           ) : (
-            <>
-              <p className="mb-2 text-center text-sm text-muted-foreground">
-                Pool holds{" "}
-                <span className="font-mono text-foreground">
-                  {poolSize === null ? "…" : `${num(poolSize, 2)} MUSD`}
-                </span>{" "}
-                right now · you hold{" "}
-                <span className="font-mono text-foreground">
-                  {!s.account ? "—" : walletMusd === null ? "…" : `${num(walletMusd, 2)} MUSD`}
-                </span>
-                {!onMezo && " · switch to Mezo to borrow"}
+            priceBusy && (
+              <p className="mb-2 text-center text-xs text-muted-foreground" aria-live="polite">
+                Updating the pool price…
               </p>
-              {priceBusy && (
-                <p className="mb-2 text-center text-xs text-muted-foreground" aria-live="polite">
-                  Updating the pool price…
-                </p>
-              )}
-            </>
+            )
           )}
           <CreditForm
             onBorrow={vault && onMezo ? borrow : undefined}
