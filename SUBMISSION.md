@@ -8,6 +8,24 @@
 - MUSD test network: `0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503`
 - Explorer: `https://explorer.test.mezo.org`
 
+## Where each judging criterion is proven
+
+| Criterion | Proof in this repo |
+| --- | --- |
+| Mezo integration | Two contracts live on Mezo test network 31611; every payment, loan and deposit is a real wallet transaction with an explorer receipt. MUSD is the money moved; no mocked balances or hashes. See addresses above and `contracts/`. |
+| Product and business viability | A payer needs only a wallet on Mezo; a payee makes a link in seconds. First users are freelancers and small shops already paid in MUSD, plus Bitcoin holders who want dollars without selling. See the business note below. |
+| Technical implementation | `src/lib/onchain.ts` (typed contract calls, chunked log reads, price freshness), `src/lib/bills.ts` (receipt reconciliation), `contracts/InvoiceRouter.sol`, `contracts/FlowVault.sol`; 34 tests in `tests/`; typecheck and production build pass. Bills are plain records, never chain activity. |
+| User experience | Plain-word pages, no protocol jargon; Disconnect; friendly failure text that says nothing moved; mobile layout; QR codes and receipt links. Borrowing pauses with a plain explanation when the pool price is old. |
+| Submission materials | This file, `README.md`, `contracts/README.md`, the deploy receipt, and the demo script below. Live URL and video are the last two fields to fill. |
+
+## Who it is for and how it could pay for itself
+
+- **First users:** freelancers and small shops already paid in MUSD, and Bitcoin holders who want spending money without selling their Bitcoin.
+- **Why they switch:** a payment link is easier to try than a new account, and the payer only needs a wallet on Mezo.
+- **Revenue path (not switched on yet):** keep a small share of the 1% yearly borrower fee, or add a flat fee per paid bill. Lenders keep the rest. No fee is charged today.
+- **Risks:** pool liquidity and the owner-posted price. The app shows the price age and pauses new loans after 15 minutes; a later version can move pricing to an oracle. Contracts are small and tested but not audited.
+- **Traction:** _add real numbers before submitting (people, bills paid, MUSD lent)._
+
 ## Try it yourself
 
 1. `bun install; bun run dev` → open the localhost address from the terminal.
