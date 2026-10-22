@@ -27,6 +27,10 @@ export function OnchainPanel({ compact }: { compact?: boolean }) {
     try {
       const b = musdAddr ? await getMusdBalance(s.account, musdAddr) : null;
       setMusd(b);
+      if (!mezoAddr) {
+        setMezoTok(null);
+        return;
+      }
       const mt = await getMezoTokenBalance(s.account, mezoAddr).catch(() => null);
       setMezoTok(mt);
     } catch {
@@ -46,7 +50,7 @@ export function OnchainPanel({ compact }: { compact?: boolean }) {
       <Card className={compact ? "text-sm" : ""}>
         <h2 className="font-semibold">Your money</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Connect your wallet above to see your MUSD and MEZO here.
+          Connect your wallet above to see your money here.
         </p>
       </Card>
     );
@@ -66,19 +70,23 @@ export function OnchainPanel({ compact }: { compact?: boolean }) {
           {loading ? "Checking…" : "Refresh"}
         </button>
       </div>
-      <dl className="grid grid-cols-2 gap-3 text-sm">
+      <dl className={`grid gap-3 text-sm ${mezoAddr ? "grid-cols-2" : "grid-cols-1"}`}>
         <div>
           <dt className="text-xs text-muted-foreground">MUSD</dt>
           <dd className="font-mono text-lg">
             {musd === null ? "—" : musd.toLocaleString("en-US", { maximumFractionDigits: 2 })}
           </dd>
         </div>
-        <div>
-          <dt className="text-xs text-muted-foreground">MEZO</dt>
-          <dd className="font-mono text-lg">
-            {mezoTok === null ? "—" : mezoTok.toLocaleString("en-US", { maximumFractionDigits: 4 })}
-          </dd>
-        </div>
+        {mezoAddr && (
+          <div>
+            <dt className="text-xs text-muted-foreground">MEZO</dt>
+            <dd className="font-mono text-lg">
+              {mezoTok === null
+                ? "—"
+                : mezoTok.toLocaleString("en-US", { maximumFractionDigits: 4 })}
+            </dd>
+          </div>
+        )}
       </dl>
       {!onMezo && (
         <p className="mt-2 text-xs text-muted-foreground">

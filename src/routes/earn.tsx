@@ -176,10 +176,9 @@ function Earn() {
       ) : (
         <>
           <Card className="mt-6">
-            <div className="grid grid-cols-2 gap-5 md:grid-cols-3">
+            <div className="grid grid-cols-2 gap-5">
               <Stat label="Money in the pool" value={`${num(poolSize, 2)} MUSD`} tone="green" />
               <Stat label="Your share is worth" value={`${num(poolValue, 2)} MUSD`} tone="gold" />
-              <Stat label="MEZO" value="Shown under your money" />
             </div>
             {!onMezo && (
               <p className="mt-3 text-xs text-muted-foreground">
@@ -262,8 +261,8 @@ function Earn() {
         <Card>
           <h3 className="font-semibold text-primary">MEZO coin</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            MEZO is Mezo&apos;s own coin for lower fees and votes. Your balance shows under your
-            money when it&apos;s on your network.
+            MEZO is Mezo&apos;s own coin for lower fees and votes. It is not needed to lend or
+            borrow here.
           </p>
         </Card>
       </div>
