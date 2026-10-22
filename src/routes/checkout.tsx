@@ -54,7 +54,7 @@ function Checkout() {
   const inv = Route.useSearch();
   const hydrated = useHydrated();
   const s = useStore();
-  const [mode, setMode] = useState<"direct" | "router">("direct");
+  const [mode, setMode] = useState<"direct" | "router">("router");
   const [tx, setTx] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -194,7 +194,7 @@ function Checkout() {
         ) : (
           <Card>
             <div className="mb-5 grid grid-cols-2 gap-2 rounded-lg bg-muted p-1" role="tablist">
-              {(["direct", "router"] as const).map((m) => (
+              {(["router", "direct"] as const).map((m) => (
                 <button
                   key={m}
                   role="tab"
@@ -205,32 +205,33 @@ function Checkout() {
                     mode === m ? "bg-card text-foreground" : "text-muted-foreground",
                   )}
                 >
-                  {m === "direct" ? "Pay now" : "Pay with approval"}
+                  {m === "router" ? "Pay with receipt" : "Send directly"}
                 </button>
               ))}
             </div>
             {mode === "direct" ? (
               <>
-                <Btn
-                  variant="green"
-                  className="w-full py-3"
-                  disabled={busy}
-                  onClick={() => void payDirect()}
-                >
-                  {busy ? "Paying…" : `Pay ${num(inv.amount, 2)} MUSD`}
+                <Btn className="w-full py-3" disabled={busy} onClick={() => void payDirect()}>
+                  {busy ? "Paying…" : `Send ${num(inv.amount, 2)} MUSD`}
                 </Btn>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Sends MUSD straight to the other person. One tap in your wallet.
+                  One tap in your wallet, straight to the other person. There is no public receipt,
+                  so the bill stays open.
                 </p>
               </>
             ) : (
               <>
-                <Btn className="w-full py-3" disabled={busy} onClick={() => void payWithRouter()}>
+                <Btn
+                  variant="green"
+                  className="w-full py-3"
+                  disabled={busy}
+                  onClick={() => void payWithRouter()}
+                >
                   {busy ? "Paying…" : `Approve and pay ${num(inv.amount, 2)} MUSD`}
                 </Btn>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  For bigger bills: you approve once in your wallet, then the payment contract moves
-                  the money and keeps a public receipt.
+                  You approve once, then the payment contract moves the money, marks the bill paid
+                  and keeps a public receipt.
                 </p>
               </>
             )}

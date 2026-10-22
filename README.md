@@ -62,7 +62,7 @@ uses the test network until those addresses are set.
 
 1. `bun install; bunx vitest run; bun run build` — all green. Tests live in `tests/`.
 2. Open the app, connect, switch to Mezo, check your money shows.
-3. Make a link, pay it both ways (Pay now + Approve and pay), then find the receipt under Past payments and the payment under Money received.
+3. Make a link, pay with a receipt (Approve and pay) and directly (Send directly), then find both under Money received and the contract receipt under Past payments.
 4. Borrow from the pool and lend MUSD on the Grow page; both write real receipts.
 
 ## Development
