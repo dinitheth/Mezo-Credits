@@ -58,5 +58,18 @@ describe("friendly errors", () => {
     expect(friendly(new Error(""))).toBe(
       "That did not go through. Nothing moved. Please try again.",
     );
+    expect(friendly({})).toBe("That did not go through. Nothing moved. Please try again.");
+  });
+
+  it("reads a plain wallet object instead of printing [object Object]", () => {
+    expect(friendly({ code: 4001, message: "User rejected the request." })).toBe(
+      "You closed the wallet popup, so nothing happened.",
+    );
+    expect(friendly({ shortMessage: "User rejected the request." })).toBe(
+      "You closed the wallet popup, so nothing happened.",
+    );
+    expect(friendly({ message: "insufficient funds for gas" })).toBe(
+      "There is not enough money in your wallet for this. Top up and try again.",
+    );
   });
 });

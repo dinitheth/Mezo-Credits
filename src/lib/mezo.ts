@@ -191,6 +191,16 @@ export async function fetchBtcPrice(): Promise<number> {
     // Fall through to the backup feed.
   }
   try {
+    const r = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT");
+    if (r.ok) {
+      const j = (await r.json()) as { price?: string };
+      const p = pick(j.price);
+      if (p) return p;
+    }
+  } catch {
+    // Fall through to the last feed.
+  }
+  try {
     const r = await fetch(
       "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd",
     );
@@ -214,12 +224,15 @@ export function usePriceFeed(live: boolean) {
     const load = async () => {
       const p = await fetchBtcPrice();
       if (!stop && p > 0) {
-        setState({ btcPrice: Math.round(p), priceLive: true });
-        f((x) => x + 1);
+        const next = Math.round(p);
+        if (next !== getState().btcPrice || !getState().priceLive) {
+          setState({ btcPrice: next, priceLive: true });
+          f((x) => x + 1);
+        }
       }
     };
     void load();
-    const t = setInterval(load, 60_000);
+    const t = setInterval(load, 30_000);
     return () => {
       stop = true;
       clearInterval(t);

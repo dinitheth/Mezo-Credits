@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Shell } from "@/components/Shell";
 import { OnchainPanel } from "@/components/OnchainPanel";
 import { Btn, Card, Field, Stat, cleanNum, inputCls } from "@/components/ui-bits";
-import { MEZO, logActivity, num, setActivityStatus, usd, usePriceFeed, useStore } from "@/lib/mezo";
+import { logActivity, num, setActivityStatus, usePriceFeed, useStore } from "@/lib/mezo";
 import { friendly } from "@/lib/errors";
 import {
   approveRouter,
@@ -46,9 +46,6 @@ function useLoan() {
   const onMezo = !s.chainId || s.chainId === 31611 || s.chainId === 31612;
   const [loan, setLoan] = useState<VaultLoan | null>(null);
   const [poolValue, setPoolValue] = useState(0);
-  const [poolPrice, setPoolPrice] = useState<bigint | null>(null);
-  const [priceTime, setPriceTime] = useState<bigint>(0n);
-  const [vaultOwner, setVaultOwner] = useState<string | null>(null);
   const [walletBtc, setWalletBtc] = useState<number | null>(null);
   const [walletMusd, setWalletMusd] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -62,9 +59,6 @@ function useLoan() {
       const pos = await getVaultPosition(vault, s.account);
       setLoan(pos.loan.liveOwed > 0n || pos.loan.backing > 0n ? pos.loan : null);
       setPoolValue(Number(pos.poolValue) / 1e18);
-      setPoolPrice(pos.price);
-      setPriceTime(pos.priceTime);
-      setVaultOwner(pos.owner);
       const btc = await getBtcBalance(s.account).catch(() => null);
       setWalletBtc(btc);
       const musd = musdAddressFor(s.chainId);
@@ -87,9 +81,6 @@ function useLoan() {
     onMezo,
     loan,
     poolValue,
-    poolPrice,
-    priceTime,
-    vaultOwner,
     walletBtc,
     walletMusd,
     loading,
@@ -100,24 +91,7 @@ function useLoan() {
 function Dashboard() {
   const s = useStore();
   usePriceFeed(true);
-  const [, setPriceTick] = useState(0);
-  useEffect(() => {
-    const timer = window.setInterval(() => setPriceTick((n) => n + 1), 30_000);
-    return () => window.clearInterval(timer);
-  }, []);
-  const {
-    vault,
-    onMezo,
-    loan,
-    poolValue,
-    poolPrice,
-    priceTime,
-    vaultOwner,
-    walletBtc,
-    walletMusd,
-    loading,
-    refresh,
-  } = useLoan();
+  const { vault, onMezo, loan, poolValue, walletBtc, walletMusd, loading, refresh } = useLoan();
   const [add, setAdd] = useState("");
   const [pay, setPay] = useState("");
   const [take, setTake] = useState("");
@@ -238,20 +212,6 @@ function Dashboard() {
     });
     setClose("");
   };
-  const doPrice = () => {
-    void run("Pool price updated", async (account, v) => {
-      if (!s.priceLive || s.btcPrice <= 0) throw new Error("Waiting on the live price. Try again.");
-      const hash = await vaultSetPrice(v, account, s.btcPrice);
-      await waitForReceipt(hash);
-      return hash;
-    });
-  };
-
-  const isOwner = Boolean(
-    s.account && vaultOwner && s.account.toLowerCase() === vaultOwner.toLowerCase(),
-  );
-  const stalePrice = poolPrice !== null && (poolPrice === 0n || priceIsStale(priceTime));
-
   const ratio = loan ? Number(loan.ratio) : 0;
   const danger = loan !== null && ratio < 150;
   const takeMax =
@@ -290,10 +250,8 @@ function Dashboard() {
         </Card>
       ) : !vault ? (
         <Card>
-          <h2 className="text-xl font-semibold">The pool opens at launch</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Loans start as soon as our pool contract is live on Mezo.
-          </p>
+          <h2 className="text-xl font-semibold">The pool is not open on this network</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Switch to Mezo to see your loan.</p>
         </Card>
       ) : !onMezo ? (
         <Card>
@@ -339,51 +297,6 @@ function Dashboard() {
                 Your safety is under 150%. Add Bitcoin or pay down MUSD before it nears 110% — under
                 that, anyone can close your loan.
               </div>
-            )}
-            <p className="mt-4 break-all font-mono text-[11px] text-muted-foreground">
-              Pool contract {vault} ·{" "}
-              <a
-                className="underline"
-                href={`${MEZO.explorer}/address/${vault}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                check it on Mezo
-              </a>
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Pool price{" "}
-              <span className="font-mono text-foreground">
-                {poolPrice === null
-                  ? "…"
-                  : poolPrice === 0n
-                    ? "not set yet"
-                    : usd(Number(poolPrice) / 1e18)}
-              </span>
-              {poolPrice !== null && poolPrice > 0n && <> · updated {priceAgeLabel(priceTime)}</>}
-              {isOwner && (
-                <>
-                  {" · "}
-                  <button
-                    type="button"
-                    onClick={doPrice}
-                    disabled={busy}
-                    className="text-primary underline disabled:opacity-40"
-                  >
-                    Refresh to today&apos;s price
-                  </button>
-                </>
-              )}
-            </p>
-            {stalePrice && (
-              <p
-                role="alert"
-                className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive"
-              >
-                The pool price is over 15 minutes old. Borrowing and closing pause until it is
-                refreshed.
-                {isOwner ? " Use the refresh button above." : " The pool owner can refresh it."}
-              </p>
             )}
           </Card>
           <Card>

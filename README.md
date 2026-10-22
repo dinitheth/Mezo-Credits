@@ -31,9 +31,9 @@ Bitcoin and borrow at 250/200/150% safety. Under 110% anyone can close a loan:
 pay what it owes, keep its Bitcoin. Loans cost 1% per year, counted every
 second, paid to lenders. Deploys in Remix — see `contracts/README.md`.
 
-The pool price is posted by the pool owner. The app shows how old it is and
-pauses new loans after 15 minutes until the owner refreshes it, so a loan is
-never priced off a stale number.
+The pool price is posted by the pool owner. When the owner is connected, the
+app refreshes it automatically; if it is over 15 minutes old, new loans pause,
+so a loan is never priced off a stale number.
 
 ## Money addresses (Mezo test network)
 

@@ -86,6 +86,7 @@ export function CreditForm({
         <span className="font-mono text-foreground">
           {s.priceLive && price > 0 ? usd(price) : "loading…"}
         </span>
+        {s.priceLive && price > 0 && <span className="text-xs"> · live</span>}
       </p>
 
       <div className="grid grid-cols-3 gap-4 rounded-lg border p-4">

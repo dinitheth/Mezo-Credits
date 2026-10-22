@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Shell } from "@/components/Shell";
 import { BtcWord } from "@/components/BitcoinMark";
 import { CreditForm } from "@/components/CreditForm";
 import { OnchainPanel } from "@/components/OnchainPanel";
 import { Btn, Card } from "@/components/ui-bits";
-import { logActivity, num, setActivityStatus, usd, useStore } from "@/lib/mezo";
+import { logActivity, num, setActivityStatus, useStore } from "@/lib/mezo";
 import { friendly } from "@/lib/errors";
 import {
   didSucceed,
@@ -54,9 +54,11 @@ function Borrow() {
   const [poolPrice, setPoolPrice] = useState<bigint>(0n);
   const [priceTime, setPriceTime] = useState<bigint>(0n);
   const [vaultOwner, setVaultOwner] = useState<string | null>(null);
+  const [priceBusy, setPriceBusy] = useState(false);
   const [, setTick] = useState(0);
+  const autoPrice = useRef<string | null>(null);
 
-  const refreshPool = async () => {
+  const refreshPool = useCallback(async () => {
     if (!vault) return;
     try {
       const g = await getVaultGlobals(vault);
@@ -67,7 +69,7 @@ function Borrow() {
     } catch {
       // Leave the last numbers on screen.
     }
-  };
+  }, [vault]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setTick((n) => n + 1), 30_000);
@@ -171,30 +173,31 @@ function Borrow() {
     }
   };
 
-  const updatePrice = async () => {
-    if (!vault || !s.account) return;
-    if (!s.priceLive || s.btcPrice <= 0) {
-      setErr("Waiting on the live price. Try again in a moment.");
-      return;
-    }
-    setBusy(true);
-    setErr(null);
-    setMsg(null);
-    try {
-      const hash = await vaultSetPrice(vault, s.account, s.btcPrice);
-      setMsg(`Pool price updated · receipt ${hash.slice(0, 12)}…`);
-      void waitForReceipt(hash).then(() => refreshPool());
-    } catch (e) {
-      setErr(friendly(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const isOwner = Boolean(
     s.account && vaultOwner && s.account.toLowerCase() === vaultOwner.toLowerCase(),
   );
   const stale = poolSize !== null && (poolPrice === 0n || priceIsStale(priceTime));
+
+  useEffect(() => {
+    const account = s.account;
+    if (!vault || !account || !isOwner || !stale || !onMezo) return;
+    if (!s.priceLive || s.btcPrice <= 0) return;
+    const key = `${vault}:${priceTime.toString()}`;
+    if (autoPrice.current === key) return;
+    autoPrice.current = key;
+    setPriceBusy(true);
+    void (async () => {
+      try {
+        const hash = await vaultSetPrice(vault, account, s.btcPrice);
+        await waitForReceipt(hash);
+        await refreshPool();
+      } catch {
+        // The wallet may have closed the popup. Borrowing asks again.
+      } finally {
+        setPriceBusy(false);
+      }
+    })();
+  }, [vault, s.account, isOwner, stale, onMezo, s.priceLive, s.btcPrice, priceTime, refreshPool]);
 
   return (
     <Shell>
@@ -256,37 +259,9 @@ function Borrow() {
                 </span>
                 {!onMezo && " · switch to Mezo to borrow"}
               </p>
-              <p className="mb-4 text-center text-xs text-muted-foreground">
-                Pool price{" "}
-                <span className="font-mono text-foreground">
-                  {poolSize === null
-                    ? "…"
-                    : poolPrice === 0n
-                      ? "not set yet"
-                      : usd(Number(poolPrice) / 1e18)}
-                </span>
-                {poolPrice > 0n && <> · updated {priceAgeLabel(priceTime)}</>}
-                {isOwner && (
-                  <>
-                    {" · "}
-                    <button
-                      type="button"
-                      onClick={() => void updatePrice()}
-                      disabled={busy}
-                      className="text-primary underline disabled:opacity-40"
-                    >
-                      Refresh to today&apos;s price
-                    </button>
-                  </>
-                )}
-              </p>
-              {stale && (
-                <p
-                  role="alert"
-                  className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 p-2 text-center text-xs text-destructive"
-                >
-                  New loans pause while the pool price is over 15 minutes old.
-                  {isOwner ? " Use the refresh button above." : " The pool owner can refresh it."}
+              {priceBusy && (
+                <p className="mb-2 text-center text-xs text-muted-foreground" aria-live="polite">
+                  Updating the pool price…
                 </p>
               )}
             </>

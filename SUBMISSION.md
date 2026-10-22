@@ -15,7 +15,7 @@
 | Mezo integration | Two contracts live on Mezo test network 31611; every payment, loan and deposit is a real wallet transaction with an explorer receipt. MUSD is the money moved; no mocked balances or hashes. See addresses above and `contracts/`. |
 | Product and business viability | A payer needs only a wallet on Mezo; a payee makes a link in seconds. First users are freelancers and small shops already paid in MUSD, plus Bitcoin holders who want dollars without selling. See the business note below. |
 | Technical implementation | `src/lib/onchain.ts` (typed contract calls, chunked log reads, price freshness), `src/lib/bills.ts` (receipt reconciliation), `contracts/InvoiceRouter.sol`, `contracts/FlowVault.sol`; 34 tests in `tests/`; typecheck and production build pass. Bills are plain records, never chain activity. |
-| User experience | Plain-word pages, no protocol jargon; Disconnect; friendly failure text that says nothing moved; mobile layout; QR codes and receipt links. Borrowing pauses with a plain explanation when the pool price is old. |
+| User experience | Plain-word pages, no protocol jargon; Disconnect; friendly failure text that says nothing moved; mobile layout; QR codes and receipt links. The pool price refreshes itself for the owner, and borrowing pauses rather than pricing off an old number. |
 | Submission materials | This file, `README.md`, `contracts/README.md`, the deploy receipt, and the demo script below. Live URL and video are the last two fields to fill. |
 
 ## Who it is for and how it could pay for itself
@@ -23,7 +23,7 @@
 - **First users:** freelancers and small shops already paid in MUSD, and Bitcoin holders who want spending money without selling their Bitcoin.
 - **Why they switch:** a payment link is easier to try than a new account, and the payer only needs a wallet on Mezo.
 - **Revenue path (not switched on yet):** keep a small share of the 1% yearly borrower fee, or add a flat fee per paid bill. Lenders keep the rest. No fee is charged today.
-- **Risks:** pool liquidity and the owner-posted price. The app shows the price age and pauses new loans after 15 minutes; a later version can move pricing to an oracle. Contracts are small and tested but not audited.
+- **Risks:** pool liquidity and the owner-posted price. The owner's app refreshes it automatically and new loans pause after 15 minutes; a later version can move pricing to an oracle. Contracts are small and tested but not audited.
 - **Traction:** _add real numbers before submitting (people, bills paid, MUSD lent)._
 
 ## Try it yourself
@@ -94,5 +94,6 @@ text, and tests moved to `tests/` (34 passing).
 Everything this app does is live on the Mezo test network: balances, prices,
 bills, payments, receipts, borrowing and lending. Bills are requests, not
 tokens; payments are real wallet transactions with public receipts. The pool
-price is posted by the pool owner; the app shows how old it is and pauses new
-loans until it is refreshed. Main network contracts are not deployed yet.
+price is posted by the pool owner; the app refreshes it automatically when the
+owner is connected and pauses new loans if it is over 15 minutes old. Main
+network contracts are not deployed yet.

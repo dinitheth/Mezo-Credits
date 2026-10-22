@@ -1,8 +1,20 @@
 /** One plain sentence for the person using the app — never a raw wallet error. */
 export function friendly(e: unknown): string {
-  const raw = (e instanceof Error ? e.message : String(e ?? "")).trim();
+  const bag = e as { code?: unknown; message?: unknown; shortMessage?: unknown } | null | undefined;
+  const code = typeof bag?.code === "number" ? bag.code : undefined;
+  const text =
+    e instanceof Error
+      ? e.message
+      : typeof bag?.shortMessage === "string"
+        ? bag.shortMessage
+        : typeof bag?.message === "string"
+          ? bag.message
+          : typeof e === "string"
+            ? e
+            : "";
+  const raw = text.trim();
   const m = raw.toLowerCase();
-  if (/4001|rejected|denied|cancel/.test(m))
+  if (code === 4001 || /4001|rejected|denied|cancel/.test(m))
     return "You closed the wallet popup, so nothing happened.";
   if (/insufficient funds|insufficient balance|exceeds balance/.test(m))
     return "There is not enough money in your wallet for this. Top up and try again.";
@@ -15,6 +27,7 @@ export function friendly(e: unknown): string {
   if (/network read failed|failed to fetch|fetch failed/.test(m))
     return "We could not reach the network. Check your connection and try again.";
   const clean =
+    raw !== "[object Object]" &&
     !/0x[0-9a-fA-F]{16,}|\bviem\b|Request Arguments|Version:|JSON-RPC|\bRPC\b|https?:\/\//.test(
       raw,
     );
