@@ -34,13 +34,13 @@ const PARTS = [
   },
   {
     n: "04",
-    title: "Plan a loan",
-    body: "See what your Bitcoin could borrow at three safety levels, with live prices. Real borrowing happens in the Mezo app, where your rate is locked.",
+    title: "Lock Bitcoin, borrow MUSD",
+    body: "Pick one of three safety levels and borrow straight from our pool. Your Bitcoin stays locked until you pay the MUSD back.",
   },
   {
     n: "05",
     title: "Grow savings",
-    body: "MUSD put in Mezo's shared pool earns Bitcoin when other loans close out. Deposits happen in the Mezo app.",
+    body: "Put MUSD in the shared pool and earn part of the fee borrowers pay. Take it back whenever the pool has cash.",
   },
   {
     n: "06",
@@ -55,7 +55,7 @@ function HowItWorks() {
       <p className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">Guide</p>
       <h1 className="mt-3 text-4xl font-bold md:text-5xl">How MezoFlow works</h1>
       <p className="mt-3 max-w-2xl text-muted-foreground">
-        Bills, payments and loan planning on Mezo — nothing else.
+        Bills, payments, borrowing and savings on Mezo — nothing else.
       </p>
       <div className="mt-10 space-y-4">
         {PARTS.map((p) => (

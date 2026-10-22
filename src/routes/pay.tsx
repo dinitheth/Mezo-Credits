@@ -1,10 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { Shell } from "@/components/Shell";
 import { Btn, Card, Field, cleanNum, inputCls } from "@/components/ui-bits";
 import { InvoiceQR } from "@/components/InvoiceQR";
-import { getState, num, setState, short, useStore } from "@/lib/mezo";
+import { MEZO, getState, num, setState, short, useStore } from "@/lib/mezo";
+import { getIncomingMusdTransfers, getInvoicePaidEvents, routerAddressFor } from "@/lib/onchain";
+import { applyBillPayments, mergeMoneyIn, type MoneyIn } from "@/lib/bills";
 
 export const Route = createFileRoute("/pay")({
   validateSearch: z.object({
@@ -39,7 +41,53 @@ function Pay() {
   const [desc, setDesc] = useState(startDesc);
   const [to, setTo] = useState("");
   const [copied, setCopied] = useState("");
+  const [received, setReceived] = useState<MoneyIn[] | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [checkErr, setCheckErr] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
   const valid = Number(amount) > 0 && /^0x[0-9a-fA-F]{40}$/.test(to || s.account || "");
+  const chainId = s.chainId;
+  const onMezo = chainId === null || chainId === 31611 || chainId === 31612;
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setTick((n) => n + 1), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    let live = true;
+    const check = async () => {
+      if (!s.account || !chainId || !onMezo) {
+        setReceived(null);
+        return;
+      }
+      setChecking(true);
+      try {
+        const router = routerAddressFor(chainId);
+        const [billEvents, transfers] = await Promise.all([
+          router ? getInvoicePaidEvents(chainId) : Promise.resolve([]),
+          getIncomingMusdTransfers(chainId, s.account).catch(() => []),
+        ]);
+        if (!live) return;
+        const applied = applyBillPayments(getState().invoices, billEvents);
+        if (applied.changed) setState({ invoices: applied.invoices });
+        const mine = billEvents.filter((e) => e.to.toLowerCase() === s.account!.toLowerCase());
+        setReceived(mergeMoneyIn(mine, transfers));
+        setCheckErr(null);
+      } catch {
+        if (live) {
+          setReceived(null);
+          setCheckErr("Could not check for money received just now. Try again in a minute.");
+        }
+      } finally {
+        if (live) setChecking(false);
+      }
+    };
+    void check();
+    return () => {
+      live = false;
+    };
+  }, [s.account, chainId, onMezo, tick, s.invoices.length]);
 
   const remove = (id: string) => {
     setState({ invoices: getState().invoices.filter((i) => i.id !== id) });
@@ -148,6 +196,70 @@ function Pay() {
               </div>
             </Card>
           ))}
+          <div className="pt-4">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className="font-semibold">Money received</h2>
+              <button
+                type="button"
+                onClick={() => setTick((n) => n + 1)}
+                disabled={checking || !s.account}
+                className="text-xs text-primary underline disabled:opacity-40"
+              >
+                {checking ? "Checking…" : "Refresh"}
+              </button>
+            </div>
+            {!s.account ? (
+              <Card className="text-sm text-muted-foreground">
+                Connect your wallet to see money coming in.
+              </Card>
+            ) : !onMezo ? (
+              <Card className="text-sm text-muted-foreground">
+                Switch to Mezo to see money coming in.
+              </Card>
+            ) : received === null ? (
+              <Card className="text-sm text-muted-foreground">
+                {checking
+                  ? "Checking the payment contract…"
+                  : checkErr
+                    ? "Could not check just now."
+                    : "Nothing here yet."}
+              </Card>
+            ) : received.length === 0 ? (
+              <Card className="text-sm text-muted-foreground">
+                Nothing yet. When someone pays one of your links it shows here, even if they paid
+                from another device.
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {received.slice(0, 10).map((m) => (
+                  <Card key={m.key} className="space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-lg text-success">
+                        {num(m.amount, 2)} MUSD
+                      </span>
+                      <a
+                        className="text-xs text-primary underline"
+                        href={`${MEZO.explorer}/tx/${m.tx}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        receipt
+                      </a>
+                    </div>
+                    <p className="text-sm">{m.desc}</p>
+                    <p className="font-mono text-xs text-muted-foreground">
+                      from {short(m.from)} · {m.source === "bill" ? "bill paid" : "sent directly"}
+                    </p>
+                  </Card>
+                ))}
+              </div>
+            )}
+            {checkErr && (
+              <p role="alert" className="mt-2 text-xs text-destructive">
+                {checkErr}
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </Shell>

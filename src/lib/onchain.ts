@@ -5,6 +5,15 @@
  * public Mezo RPC otherwise; writes open the connected wallet.
  */
 
+import {
+  INVOICE_PAID_ABI,
+  TRANSFER_ABI,
+  decodeInvoicePaid,
+  decodeTransfer,
+  type BillPaid,
+  type DirectPaid,
+  type RawLog,
+} from "./bills";
 import { getWalletAdapter } from "./wallet-adapter";
 
 export const MUSD_TOKEN = {
@@ -19,13 +28,24 @@ export const MUSD_TOKEN = {
  * MEZO coin addresses. Values resolve from `VITE_MEZO_TOKEN_*` when set,
  * otherwise empty and the balance simply shows — .
  */
-const env = (k: string): string | null => {
+const envText = (k: string): string | null => {
   try {
     const v = (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.[k];
-    return v && /^0x[0-9a-fA-F]{40}$/.test(v) ? v : null;
+    return v?.trim() || null;
   } catch {
     return null;
   }
+};
+
+const env = (k: string): string | null => {
+  const v = envText(k);
+  return v && /^0x[0-9a-fA-F]{40}$/.test(v) ? v : null;
+};
+
+const envInt = (k: string): number | null => {
+  const v = envText(k);
+  const n = v ? Number(v) : NaN;
+  return Number.isFinite(n) && n >= 0 ? n : null;
 };
 
 export const MEZO_TOKEN = {
@@ -54,33 +74,37 @@ export function mezoTokenAddressFor(chainId: number | null): string | null {
   return null;
 }
 
-// ---------------------------------------------------------------------------
-// Fee-aware math (Mezo protocol: ~1% fixed borrowing fee, 200 MUSD gas
-// compensation, 1,800 min borrow / 2,000 min total debt). Simulation in
-// `mezo.ts` ignores fees; these helpers expose the real cost for the UI.
-// ---------------------------------------------------------------------------
+/** How long the pool's posted price may be used before new loans pause. */
+export const PRICE_STALE_SECONDS = 15 * 60;
 
-export const BORROW_FEE_RATE = 0.01;
-export const GAS_COMP_MUSD = 200;
-export const MIN_BORROW_MUSD = 1800;
-export const MIN_DEBT_MUSD = 2000;
-
-export const borrowingFee = (mint: number) => (mint > 0 ? mint * BORROW_FEE_RATE : 0);
-export const expectedTotalDebt = (mint: number) =>
-  mint > 0 ? mint + borrowingFee(mint) + GAS_COMP_MUSD : 0;
-
-/** Effective collateral ratio after fee + gas comp are added to debt. */
-export function effectiveCr(collateralBtc: number, mint: number, price: number) {
-  const debt = expectedTotalDebt(mint);
-  if (debt <= 0) return Infinity;
-  return (collateralBtc * price * 100) / debt;
+export function priceAgeSeconds(
+  priceTime: bigint | number | null | undefined,
+  nowMs = Date.now(),
+): number {
+  const t = typeof priceTime === "bigint" ? Number(priceTime) : (priceTime ?? 0);
+  if (!t) return Number.POSITIVE_INFINITY;
+  return Math.max(0, Math.floor(nowMs / 1000) - t);
 }
 
-export function validateBorrow(mint: number): string | null {
-  if (!mint || mint <= 0) return "Enter an amount above zero.";
-  if (mint < MIN_BORROW_MUSD)
-    return `Below the ${MIN_BORROW_MUSD.toLocaleString()} MUSD minimum borrow (total debt at open would be under ${MIN_DEBT_MUSD.toLocaleString()} MUSD with the ${GAS_COMP_MUSD} MUSD gas deposit).`;
-  return null;
+export function priceAgeLabel(
+  priceTime: bigint | number | null | undefined,
+  nowMs = Date.now(),
+): string {
+  const s = priceAgeSeconds(priceTime, nowMs);
+  if (!Number.isFinite(s)) return "never";
+  if (s < 60) return "just now";
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 48) return `${h} h ago`;
+  return `${Math.round(h / 24)} days ago`;
+}
+
+export function priceIsStale(
+  priceTime: bigint | number | null | undefined,
+  nowMs = Date.now(),
+): boolean {
+  return priceAgeSeconds(priceTime, nowMs) > PRICE_STALE_SECONDS;
 }
 
 // ---------------------------------------------------------------------------
@@ -146,8 +170,13 @@ function provider(): EthProvider | null {
 /** Public read endpoint used when no browser wallet is present. */
 const READ_RPC = "https://rpc.test.mezo.org";
 
-async function rpcCall(method: string, params: unknown[]): Promise<unknown> {
-  const res = await fetch(READ_RPC, {
+const RPC_BY_CHAIN: Record<number, string> = {
+  31611: READ_RPC,
+  31612: "https://rpc.mainnet.mezo.org",
+};
+
+async function rpcCallTo(url: string, method: string, params: unknown[]): Promise<unknown> {
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
@@ -156,6 +185,10 @@ async function rpcCall(method: string, params: unknown[]): Promise<unknown> {
   const j = (await res.json()) as { result?: unknown; error?: { message?: string } };
   if (j.error) throw new Error(j.error.message ?? "Network read failed.");
   return j.result;
+}
+
+async function rpcCall(method: string, params: unknown[]): Promise<unknown> {
+  return rpcCallTo(READ_RPC, method, params);
 }
 
 async function ethCall(to: string, data: string): Promise<string> {
@@ -351,6 +384,114 @@ export function routerAddressFor(chainId: number | null): string | null {
   return null;
 }
 
+/** First block worth reading. Testnet defaults to the payment contract's deploy block. */
+export function flowStartBlock(chainId: number): number {
+  if (chainId === 31611) return envInt("VITE_FLOW_START_BLOCK_TESTNET") ?? 16173807;
+  if (chainId === 31612) return envInt("VITE_FLOW_START_BLOCK_MAINNET") ?? 0;
+  return 0;
+}
+
+/**
+ * The public RPC refuses log queries over 10,000 blocks, so walk the chain in
+ * windows and remember what was already read. The first check is a handful of
+ * calls; later 30-second ticks only ask for new blocks.
+ */
+const LOG_CHUNK = 9_000;
+type LogCache = { to: number; logs: RawLog[] };
+const logCache = new Map<string, LogCache>();
+const logInflight = new Map<string, Promise<RawLog[]>>();
+
+async function getLogs(
+  chainId: number,
+  address: string,
+  topics: (string | string[] | null)[],
+  key: string,
+): Promise<RawLog[]> {
+  const running = logInflight.get(key);
+  if (running) return running;
+  const task = readLogs(chainId, address, topics, key).finally(() => logInflight.delete(key));
+  logInflight.set(key, task);
+  return task;
+}
+
+async function readLogs(
+  chainId: number,
+  address: string,
+  topics: (string | string[] | null)[],
+  key: string,
+): Promise<RawLog[]> {
+  const url = RPC_BY_CHAIN[chainId];
+  if (!url) return [];
+  const cached = logCache.get(key);
+  const logs = cached ? [...cached.logs] : [];
+  let from = cached ? cached.to + 1 : flowStartBlock(chainId);
+  const headRaw = await rpcCallTo(url, "eth_blockNumber", []);
+  const head = typeof headRaw === "string" ? Number.parseInt(headRaw, 16) : Number(headRaw);
+  if (!Number.isFinite(head) || from > head) return logs;
+  for (; from <= head; from += LOG_CHUNK) {
+    const to = Math.min(from + LOG_CHUNK - 1, head);
+    const result = await rpcCallTo(url, "eth_getLogs", [
+      {
+        address,
+        topics,
+        fromBlock: `0x${from.toString(16)}`,
+        toBlock: `0x${to.toString(16)}`,
+      },
+    ]);
+    if (Array.isArray(result)) logs.push(...(result as RawLog[]));
+  }
+  logCache.set(key, { to: head, logs });
+  return logs;
+}
+
+/**
+ * Real receipts for bills paid through the payment contract. Pass the bill id
+ * hashes to reconcile saved bills, or `to` to see money that came to a wallet.
+ * Newest first.
+ */
+export async function getInvoicePaidEvents(
+  chainId: number,
+  opts: { to?: string; idHashes?: string[] } = {},
+): Promise<BillPaid[]> {
+  const router = routerAddressFor(chainId);
+  if (!router) return [];
+  // Never scan a public chain from genesis; set a start block after a deploy.
+  if (flowStartBlock(chainId) === 0 && chainId === 31612) return [];
+  const { encodeEventTopics } = await import("viem");
+  const [topic0] = encodeEventTopics({ abi: INVOICE_PAID_ABI, eventName: "InvoicePaid" });
+  if (!topic0) return [];
+  const logs = await getLogs(chainId, router, [topic0], `invoice:${chainId}:${router}`);
+  const ids = opts.idHashes?.map((h) => h.toLowerCase());
+  const to = opts.to?.toLowerCase();
+  return logs
+    .map(decodeInvoicePaid)
+    .filter(
+      (e) => (!ids || ids.includes(e.idHash.toLowerCase())) && (!to || e.to.toLowerCase() === to),
+    )
+    .reverse();
+}
+
+/** MUSD sent straight to a wallet, so the same list can show both ways of paying. */
+export async function getIncomingMusdTransfers(
+  chainId: number,
+  account: string,
+): Promise<DirectPaid[]> {
+  const musd = musdAddressFor(chainId);
+  if (!musd) return [];
+  // Never scan a public chain from genesis; set a start block after a deploy.
+  if (flowStartBlock(chainId) === 0 && chainId === 31612) return [];
+  const { encodeEventTopics } = await import("viem");
+  const [topic0] = encodeEventTopics({ abi: TRANSFER_ABI, eventName: "Transfer" });
+  if (!topic0) return [];
+  const who = account.toLowerCase();
+  const topics: (string | string[] | null)[] = [topic0, null, `0x${addrToWord(account)}`];
+  const logs = await getLogs(chainId, musd, topics, `transfer:${chainId}:${musd}:${who}`);
+  return logs
+    .map(decodeTransfer)
+    .filter((t): t is DirectPaid => t !== null)
+    .reverse();
+}
+
 const ERC20_APPROVE_ABI = [
   {
     name: "approve",
@@ -509,6 +650,13 @@ const VAULT_ABI = [
     outputs: [{ type: "uint256" }],
   },
   {
+    name: "priceTime",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
     name: "poolBalance",
     type: "function",
     stateMutability: "view",
@@ -639,20 +787,32 @@ export async function getVaultPosition(
   totalShares: bigint;
   poolBalance: bigint;
   price: bigint;
+  priceTime: bigint;
   owner: string;
 }> {
-  const [loan, liveOwed, ratio, shares, poolValue, poolBalance, totalShares, price, owner] =
-    await Promise.all([
-      vaultCall<[bigint, bigint, bigint, bigint]>(vault, "loans", [who]),
-      vaultCall<bigint>(vault, "owedOf", [who]),
-      vaultCall<bigint>(vault, "backingRatio", [who]),
-      vaultCall<bigint>(vault, "shares", [who]),
-      vaultCall<bigint>(vault, "poolOf", [who]),
-      vaultCall<bigint>(vault, "poolBalance", []),
-      vaultCall<bigint>(vault, "totalShares", []),
-      vaultCall<bigint>(vault, "btcPrice", []),
-      vaultCall<string>(vault, "owner", []),
-    ]);
+  const [
+    loan,
+    liveOwed,
+    ratio,
+    shares,
+    poolValue,
+    poolBalance,
+    totalShares,
+    price,
+    priceTime,
+    owner,
+  ] = await Promise.all([
+    vaultCall<[bigint, bigint, bigint, bigint]>(vault, "loans", [who]),
+    vaultCall<bigint>(vault, "owedOf", [who]),
+    vaultCall<bigint>(vault, "backingRatio", [who]),
+    vaultCall<bigint>(vault, "shares", [who]),
+    vaultCall<bigint>(vault, "poolOf", [who]),
+    vaultCall<bigint>(vault, "poolBalance", []),
+    vaultCall<bigint>(vault, "totalShares", []),
+    vaultCall<bigint>(vault, "btcPrice", []),
+    vaultCall<bigint>(vault, "priceTime", []),
+    vaultCall<string>(vault, "owner", []),
+  ]);
   return {
     loan: { backing: loan[0], owed: loan[1], liveOwed, ratio, tier: Number(loan[2]) },
     poolValue,
@@ -660,6 +820,7 @@ export async function getVaultPosition(
     totalShares,
     poolBalance,
     price,
+    priceTime,
     owner,
   };
 }
@@ -692,13 +853,15 @@ export async function getVaultGlobals(vault: string): Promise<{
   poolBalance: bigint;
   totalShares: bigint;
   price: bigint;
+  priceTime: bigint;
   owner: string;
 }> {
-  const [poolBalance, totalShares, price, owner] = await Promise.all([
+  const [poolBalance, totalShares, price, priceTime, owner] = await Promise.all([
     vaultCall<bigint>(vault, "poolBalance", []),
     vaultCall<bigint>(vault, "totalShares", []),
     vaultCall<bigint>(vault, "btcPrice", []),
+    vaultCall<bigint>(vault, "priceTime", []),
     vaultCall<string>(vault, "owner", []),
   ]);
-  return { poolBalance, totalShares, price, owner };
+  return { poolBalance, totalShares, price, priceTime, owner };
 }

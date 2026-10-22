@@ -12,6 +12,7 @@ export type WalletAdapter = {
   }) => Promise<string>;
   signTypedData: (account: string, typed: unknown) => Promise<string>;
   switchNetwork?: (chainId: number) => Promise<void>;
+  logout?: () => void | Promise<void>;
 };
 
 let adapter: WalletAdapter | null = null;

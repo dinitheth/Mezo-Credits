@@ -4,7 +4,7 @@ import { EthereumWalletConnectors, isEthereumWallet } from "@dynamic-labs/ethere
 import { defineChain } from "viem";
 
 import { Btn } from "./ui-bits";
-import { setState, short } from "@/lib/mezo";
+import { clearManualDisconnect, setState, short } from "@/lib/mezo";
 import { DYNAMIC_ENV_ID, setWalletAdapter } from "@/lib/wallet-adapter";
 
 /** Mezo networks, for wallet calls that need a chain attached. */
@@ -53,8 +53,12 @@ function normalizeTyped(typed: unknown): unknown {
 
 /** Keeps the app store in step with the connected wallet, and wires up writes. */
 function WalletSync() {
-  const { primaryWallet } = useDynamicContext();
+  const { primaryWallet, handleLogOut } = useDynamicContext();
   const syncedRef = useRef<string | null>(null);
+  const logoutRef = useRef(handleLogOut);
+  useEffect(() => {
+    logoutRef.current = handleLogOut;
+  }, [handleLogOut]);
 
   useEffect(() => {
     if (!primaryWallet) {
@@ -66,6 +70,7 @@ function WalletSync() {
       return;
     }
     const address = primaryWallet.address;
+    clearManualDisconnect();
     setState({ account: address });
     if (!isEthereumWallet(primaryWallet)) {
       setWalletAdapter(null);
@@ -110,6 +115,7 @@ function WalletSync() {
               });
             }
           },
+          logout: () => logoutRef.current(),
         });
       } catch {
         // Wallet is still spinning up; reads keep working through the public network.

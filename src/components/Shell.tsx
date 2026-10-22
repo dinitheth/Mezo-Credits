@@ -5,6 +5,7 @@ import {
   MEZO,
   autoRestore,
   connectWallet,
+  disconnectWallet,
   hydrateStore,
   short,
   switchToMezo,
@@ -108,9 +109,21 @@ export function Shell({ children }: { children: ReactNode }) {
             </Btn>
           )}
           {s.account ? (
-            <span className="flex items-center gap-2 rounded-lg border px-3 py-2 font-mono text-sm">
-              <span className={`h-2 w-2 rounded-full ${wrong ? "bg-destructive" : "bg-success"}`} />
-              {short(s.account)}
+            <span className="flex items-center gap-2">
+              <span className="flex items-center gap-2 rounded-lg border px-3 py-2 font-mono text-sm">
+                <span
+                  className={`h-2 w-2 rounded-full ${wrong ? "bg-destructive" : "bg-success"}`}
+                />
+                {short(s.account)}
+              </span>
+              <Btn
+                variant="ghost"
+                className="border"
+                title="Disconnect this wallet"
+                onClick={disconnectWallet}
+              >
+                Disconnect
+              </Btn>
             </span>
           ) : (
             <DynamicConnectArea

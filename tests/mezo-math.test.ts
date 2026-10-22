@@ -1,19 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { crOf, health, liqPrice } from "@/lib/mezo";
 import { cleanNum } from "@/components/ui-bits";
-import {
-  BORROW_FEE_RATE,
-  GAS_COMP_MUSD,
-  MIN_BORROW_MUSD,
-  borrowingFee,
-  effectiveCr,
-  expectedTotalDebt,
-  formatMUSD,
-  invoiceTypedData,
-  musdAddressFor,
-  parseMUSD,
-  validateBorrow,
-} from "@/lib/onchain";
+import { formatMUSD, invoiceTypedData, musdAddressFor, parseMUSD } from "@/lib/onchain";
 
 describe("collateral math", () => {
   it("computes CR and liquidation price", () => {
@@ -35,27 +23,6 @@ describe("input validation", () => {
     expect(cleanNum("12,5")).toBe("12.5");
     expect(cleanNum("abc0.05..6", 2)).toBe("0.05");
     expect(cleanNum(".5")).toBe("0.5");
-  });
-});
-
-describe("fee-aware math (1% + 200 gas comp)", () => {
-  it("adds fee and gas comp", () => {
-    expect(BORROW_FEE_RATE).toBe(0.01);
-    expect(GAS_COMP_MUSD).toBe(200);
-    expect(borrowingFee(2000)).toBeCloseTo(20);
-    expect(expectedTotalDebt(2000)).toBeCloseTo(2220);
-  });
-
-  it("enforces the 1,800 minimum borrow", () => {
-    expect(validateBorrow(0)).not.toBeNull();
-    expect(validateBorrow(250)).not.toBeNull();
-    expect(validateBorrow(MIN_BORROW_MUSD)).toBeNull();
-  });
-
-  it("lowers effective CR once fees are included", () => {
-    const plain = crOf(1, 2000, 68000);
-    const eff = effectiveCr(1, 2000, 68000);
-    expect(eff).toBeLessThan(plain);
   });
 });
 

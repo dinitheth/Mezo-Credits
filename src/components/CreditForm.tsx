@@ -3,7 +3,7 @@ import { Btn, Field, Gauge, Stat, Tip, cleanNum, inputCls } from "./ui-bits";
 import { MIN_CR, TIERS, liqPrice, num, usd, useStore } from "@/lib/mezo";
 import { cn } from "@/lib/utils";
 
-/** Borrowing planner. Math only — real borrowing happens in the Mezo app. */
+/** Borrowing planner, wired to the pool contract by the Borrow page. */
 export function CreditForm({
   onBorrow,
   borrowing,
@@ -19,7 +19,7 @@ export function CreditForm({
 }) {
   const s = useStore();
   const [tier, setTier] = useState<(typeof TIERS)[number]>(TIERS[1]);
-  const [btcIn, setBtcIn] = useState("0.05");
+  const [btcIn, setBtcIn] = useState("");
   const price = s.btcPrice;
 
   const maxBtc =
@@ -43,7 +43,7 @@ export function CreditForm({
       <div>
         <div className="mb-2 flex items-center text-sm text-muted-foreground">
           Safety level
-          <Tip text="How much extra Bitcoin backs your loan. Mezo closes loans below 110%. A higher level means less to borrow but more room if the price falls." />
+          <Tip text="How much extra Bitcoin backs your loan. Below 110% anyone can close it. A higher level means less to borrow but more room if the price falls." />
         </div>
         <div className="grid grid-cols-3 gap-2" role="radiogroup">
           {TIERS.map((t) => (
@@ -69,6 +69,7 @@ export function CreditForm({
         <input
           className={inputCls}
           inputMode="decimal"
+          placeholder="e.g. 0.05"
           value={btcIn}
           onChange={(e) => setBtcIn(cleanNum(e.target.value))}
         />
@@ -115,8 +116,8 @@ export function CreditForm({
       )}
 
       <p className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
-        Mezo asks for at least 1,800 MUSD per loan. When you have MUSD, send it from Get paid or
-        watch it grow under Grow.
+        The pool charges 1% a year on what you owe, counted every second and paid to lenders. You
+        can pay it back whenever you like.
       </p>
 
       {power > 0 && price > 0 && (

@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { walletSwitchViaAdapter } from "./wallet-adapter";
+import { getWalletAdapter, walletSwitchViaAdapter } from "./wallet-adapter";
 
 export const MEZO = {
   chainId: 31611,
@@ -256,6 +256,7 @@ export const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 type Eth = {
   request: (a: { method: string; params?: unknown }) => Promise<unknown>;
   on?: (e: string, f: (x: unknown) => void) => void;
+  removeListener?: (e: string, f: (x: unknown) => void) => void;
 };
 
 /** The wallet actually in use, once we know which one has the account. */
@@ -293,11 +294,66 @@ const eth = (): Eth | undefined => {
 };
 
 let watching = false;
+let watchingProvider: Eth | null = null;
+let accountsHandler: ((a: unknown) => void) | null = null;
+let chainHandler: ((c: unknown) => void) | null = null;
+
 function watchWallet(e: Eth) {
   if (watching) return;
   watching = true;
-  e.on?.("accountsChanged", (a: unknown) => setState({ account: (a as string[])[0] ?? null }));
-  e.on?.("chainChanged", (c: unknown) => setState({ chainId: parseInt(c as string, 16) }));
+  watchingProvider = e;
+  accountsHandler = (a) => setState({ account: (a as string[])[0] ?? null });
+  chainHandler = (c) => setState({ chainId: parseInt(c as string, 16) });
+  e.on?.("accountsChanged", accountsHandler);
+  e.on?.("chainChanged", chainHandler);
+}
+
+function stopWatching() {
+  if (watchingProvider) {
+    if (accountsHandler) watchingProvider.removeListener?.("accountsChanged", accountsHandler);
+    if (chainHandler) watchingProvider.removeListener?.("chainChanged", chainHandler);
+  }
+  watching = false;
+  watchingProvider = null;
+  accountsHandler = null;
+  chainHandler = null;
+}
+
+const MANUAL_KEY = "mezoflow_manual_disconnect";
+
+/** True after the person chose Disconnect; quiet reconnect stays off until they connect again. */
+export function isManualDisconnected(): boolean {
+  try {
+    return localStorage.getItem(MANUAL_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function clearManualDisconnect() {
+  try {
+    localStorage.removeItem(MANUAL_KEY);
+  } catch {
+    // Storage unavailable: nothing to clear.
+  }
+}
+
+function rememberManualDisconnect() {
+  try {
+    localStorage.setItem(MANUAL_KEY, "1");
+  } catch {
+    // Storage unavailable: the current page still disconnects.
+  }
+}
+
+/** Leave the wallet behind on purpose, and do not silently reconnect on refresh. */
+export function disconnectWallet() {
+  const adapter = getWalletAdapter();
+  if (adapter?.logout) void Promise.resolve(adapter.logout()).catch(() => {});
+  stopWatching();
+  activeProvider = null;
+  rememberManualDisconnect();
+  setState({ account: null, chainId: null });
 }
 
 /**
@@ -306,6 +362,7 @@ function watchWallet(e: Eth) {
  * No popup: eth_accounts only returns accounts the user already shared.
  */
 export async function restoreWallet() {
+  if (isManualDisconnected()) return false;
   const wallets = installedWallets();
   for (const p of wallets) {
     try {
@@ -329,6 +386,7 @@ export async function restoreWallet() {
  * extension is still starting up. Never shows a popup.
  */
 export function autoRestore() {
+  if (isManualDisconnected()) return;
   let tries = 0;
   const attempt = async () => {
     tries += 1;
@@ -345,6 +403,7 @@ export function autoRestore() {
 }
 
 export async function connectWallet() {
+  clearManualDisconnect();
   const e = eth() ?? installedWallets()[0];
   if (!e) throw new Error("No browser wallet found. Install MetaMask or another EVM wallet.");
   activeProvider = e;
