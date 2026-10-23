@@ -22,7 +22,7 @@ Deploy receipt: `0x32fb9682c1184ba38db2863547d7d3a9a03f22c988a94b2a3e4ed7d5ff941
 
 How money moves in the pool:
 
-- Lenders put MUSD in and get shares. Shares grow as borrowers pay fees.
+- Lenders put MUSD in and get shares. Shares grow when borrowers repay their fees.
 - Borrowers lock Bitcoin and take MUSD at 250/200/150% safety.
 - Under 110% anyone can close a loan: pay what it owes, keep its Bitcoin.
-- Loans cost 1% per year, counted every second, paid to lenders.
+- Loans cost 1% per year, counted every second, added to the pool when repaid.

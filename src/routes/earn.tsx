@@ -22,9 +22,15 @@ export const Route = createFileRoute("/earn")({
   head: () => ({
     meta: [
       { title: "Grow your money — MezoFlow" },
-      { name: "description", content: "Lend MUSD to borrowers and earn the fees." },
+      {
+        name: "description",
+        content: "Lend MUSD to borrowers. The yearly fee is added when loans are repaid.",
+      },
       { property: "og:title", content: "Grow your money — MezoFlow" },
-      { property: "og:description", content: "Fund the pool, earn borrower fees." },
+      {
+        property: "og:description",
+        content: "Lend MUSD. Fees reach the pool when borrowers repay.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -157,8 +163,8 @@ function Earn() {
     <Shell>
       <h1 className="text-3xl font-bold">Grow your money</h1>
       <p className="mt-2 max-w-2xl text-muted-foreground">
-        Lend MUSD to the pool. Borrowers pay fees, and the fees grow what your share is worth. Take
-        out any time there is money in the pool.
+        Lend MUSD to borrowers. They owe 1% a year, and that fee reaches the pool when they repay.
+        Money out on loan is not cash you can take until it comes back.
       </p>
 
       {!vault ? (
@@ -177,9 +183,22 @@ function Earn() {
         <>
           <Card className="mt-6">
             <div className="grid grid-cols-2 gap-5">
-              <Stat label="Money in the pool" value={`${num(poolSize, 2)} MUSD`} tone="green" />
-              <Stat label="Your share is worth" value={`${num(poolValue, 2)} MUSD`} tone="gold" />
+              <Stat
+                label="Cash in the pool"
+                value={`${num(poolSize, 2)} MUSD`}
+                tone="green"
+                tip="MUSD sitting in the pool right now. Money out on loan is not included."
+              />
+              <Stat
+                label="Your share in cash"
+                value={`${num(poolValue, 2)} MUSD`}
+                tone="gold"
+                tip="Cash your shares can take now. Money out on loan, and fees not yet repaid, are not included."
+              />
             </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              These numbers are cash only. Loans out, and fees not yet paid, are not in them.
+            </p>
             {!onMezo && (
               <p className="mt-3 text-xs text-muted-foreground">
                 You are on another network. Switch to Mezo to lend or take back.
@@ -228,8 +247,11 @@ function Earn() {
                 </div>
               </Field>
               <p className="text-xs text-muted-foreground">
-                Yours to take:{" "}
+                Cash you can take now:{" "}
                 <span className="font-mono text-foreground">{num(poolValue, 2)} MUSD</span>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Money out on loan becomes available when borrowers repay.
               </p>
             </Card>
           </div>
@@ -252,10 +274,10 @@ function Earn() {
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <Card>
-          <h3 className="font-semibold text-primary">Where growth comes from</h3>
+          <h3 className="font-semibold text-primary">When growth happens</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Every loan pays a small yearly fee. Fees stay in the pool, so each share becomes worth a
-            little more over time.
+            Borrowers owe 1% a year. The fee is added to the pool only when they repay, and then
+            every share is worth more. If nothing is repaid, the pool has not grown.
           </p>
         </Card>
         <Card>

@@ -287,7 +287,12 @@ function Dashboard() {
                 value={ratio > 1000000 ? "—" : `${ratio.toFixed(0)}%`}
                 tone={danger ? "red" : "green"}
               />
-              <Stat label="Your savings share" value={`${num(poolValue, 2)} MUSD`} tone="green" />
+              <Stat
+                label="Your cash share"
+                value={`${num(poolValue, 2)} MUSD`}
+                tone="green"
+                tip="Cash your shares can take now. Money out on loan, and fees not yet repaid, are not included."
+              />
             </div>
             {danger && (
               <div

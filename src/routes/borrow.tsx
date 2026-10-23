@@ -206,7 +206,8 @@ function Borrow() {
           <h1 className="text-3xl font-bold">Borrow</h1>
           <p className="mt-2 text-muted-foreground">
             Lock Bitcoin here and borrow MUSD, Mezo&apos;s
-            <BtcWord text="Bitcoin-backed" /> dollar. Lenders fund the pool and earn the fees.
+            <BtcWord text="Bitcoin-backed" /> dollar. Lenders fund the pool and are paid when loans
+            are repaid.
           </p>
           <ol className="mt-6 space-y-3 text-sm text-muted-foreground">
             <li>

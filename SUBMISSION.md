@@ -14,7 +14,7 @@
 | --- | --- |
 | Mezo integration | Two contracts live on Mezo test network 31611; every payment, loan and deposit is a real wallet transaction with an explorer receipt. MUSD is the money moved; no mocked balances or hashes. See addresses above and `contracts/`. |
 | Product and business viability | A payer needs only a wallet on Mezo; a payee makes a link in seconds. First users are freelancers and small shops already paid in MUSD, plus Bitcoin holders who want dollars without selling. See the business note below. |
-| Technical implementation | `src/lib/onchain.ts` (typed contract calls, chunked log reads, price freshness), `src/lib/bills.ts` (receipt reconciliation), `contracts/InvoiceRouter.sol`, `contracts/FlowVault.sol`; 34 tests in `tests/`; typecheck and production build pass. Bills are plain records, never chain activity. |
+| Technical implementation | `src/lib/onchain.ts` (typed contract calls, chunked log reads, price freshness), `src/lib/bills.ts` (receipt reconciliation), `contracts/InvoiceRouter.sol`, `contracts/FlowVault.sol`; 95 tests in `tests/`; typecheck and production build pass. Bills are plain records, never chain activity. |
 | User experience | Plain-word pages, no protocol jargon; Disconnect; friendly failure text that says nothing moved; mobile layout; QR codes and receipt links. The pool price refreshes itself for the owner, and borrowing pauses rather than pricing off an old number. |
 | Submission materials | This file, `README.md`, `contracts/README.md`, the deploy receipt, and the demo script below. Live URL and video are the last two fields to fill. |
 
@@ -44,9 +44,9 @@
 - **Project name:** MezoFlow
 - **Category:** Payments and borrowing
 - **TL;DR:** MezoFlow turns MUSD into spendable money: payment links with real receipts, plus a pool where Bitcoin holders borrow MUSD and savers lend it.
-- **How it works:** Freelancers and shops get paid in dollars but hold Bitcoin. A payee makes a bill in seconds and shares a link or QR code; the payer connects a Mezo wallet and chooses: pay straight to the wallet, or pay through `InvoiceRouter` for a public receipt. Bills are plain records, so the payee's page marks them paid on any device by reading the contract's `InvoicePaid` events; a direct payment still lands under Money received with its wallet receipt. On the credit side, Bitcoin holders lock BTC in `FlowVault` and borrow MUSD at 150/200/250% safety; lenders deposit MUSD and earn the 1% yearly fee. MUSD is the unit of account for every bill, the asset borrowers receive, and the asset lenders earn. MEZO is not needed for the core flow; it is the network's fee and governance coin.
+- **How it works:** Freelancers and shops get paid in dollars but hold Bitcoin. A payee makes a bill in seconds and shares a link or QR code; the payer connects a Mezo wallet and chooses: pay straight to the wallet, or pay through `InvoiceRouter` for a public receipt. Bills are plain records, so the payee's page marks them paid on any device by reading the contract's `InvoicePaid` events; a direct payment still lands under Money received with its wallet receipt. On the credit side, Bitcoin holders lock BTC in `FlowVault` and borrow MUSD at 150/200/250% safety; lenders deposit MUSD, and the 1% yearly fee is added to the pool when loans are repaid (none collected on testnet yet). MUSD is the unit of account for every bill, the asset borrowers receive, and the asset lenders earn. MEZO is not needed for the core flow; it is the network's fee and governance coin.
 - **Target group:** Freelancers, small shops and Bitcoin holders. No DeFi knowledge assumed: the payer only needs a wallet on Mezo, and every screen uses plain words. Mobile-first for paying and sharing; desktop for managing a loan or a pool position. Global, English. Fits Track 1 because money actually moves, and Track 2 because links and plain words lower the entry bar.
-- **Tech stack:** TanStack Start v1, React 19, Vite 8, Tailwind v4, TypeScript, `viem`, Solidity 0.8.20, optional Dynamic wallet kit, Mezo testnet RPC, Vitest (34 tests).
+- **Tech stack:** TanStack Start v1, React 19, Vite 8, Tailwind v4, TypeScript, `viem`, Solidity 0.8.20, optional Dynamic wallet kit, Mezo testnet RPC, Vitest (95 tests).
 - **Track:** Both.
 - **Chain deployed on:** Mezo test network (chain 31611). Main network contracts are not deployed.
 - **Project status:** _entirely new, or existing with features added during the hackathon — pick one and link the previous site if any._
@@ -66,15 +66,15 @@
 Since Wave 1 this repo added: the real `FlowVault` borrowing/lending pool,
 `InvoicePaid`-based bill reconciliation, a Money received list, the 15-minute
 pool price freshness guard with owner refresh, Disconnect, plain-word failure
-text, and tests moved to `tests/` (34 passing).
+text, and tests moved to `tests/` (95 passing).
 
 ## Deck outline (8 slides)
 
 1. **Title** — MezoFlow · MUSD payments and borrowing · testnet live · repo link.
 2. **Problem** — freelancers and shops bill in dollars; Bitcoin holders do not want to sell; wallets can send but do not reconcile bills.
-3. **Solution** — payment link or QR → pay in MUSD → public receipt; borrow against Bitcoin; lend MUSD to earn.
+3. **Solution** — payment link or QR → pay in MUSD → public receipt; borrow against Bitcoin; lend MUSD for fees when loans repay.
 4. **Demo** — four screenshots: a bill, checkout, Money received, Borrow.
-5. **Mezo fit** — MUSD as unit of account, credit asset and yield; two live contracts on 31611.
+5. **Mezo fit** — MUSD as unit of account, credit asset and lender fee income; two live contracts on 31611.
 6. **How it works** — small diagram: browser → wallet → Mezo RPC → `InvoiceRouter` / `FlowVault`; event scan reconciles bills.
 7. **Users and business** — first users, wedge, revenue path, honest risks.
 8. **Roadmap and team** — three milestones with dates, team, live URL.
@@ -86,7 +86,7 @@ text, and tests moved to `tests/` (34 passing).
 - 0:40–1:05 — Pay page: choose "Approve and pay"; show the bill turn Paid with its receipt.
 - 1:05–1:20 — Money received: show the payment and open the explorer receipt.
 - 1:20–1:45 — Borrow: lock Bitcoin, borrow MUSD, show the receipt.
-- 1:45–1:55 — Grow: lend MUSD, show the share.
+- 1:45–1:55 — Grow: lend MUSD, show the cash share and the fee note.
 - 1:55–2:00 — Close: "Real MUSD on Mezo. Links, loans, receipts."
 
 ## Honest note for judges
