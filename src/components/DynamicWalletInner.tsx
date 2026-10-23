@@ -1,10 +1,14 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { DynamicContextProvider, useDynamicContext } from "@dynamic-labs/sdk-react-core";
+import {
+  DynamicContextProvider,
+  mergeNetworks,
+  useDynamicContext,
+} from "@dynamic-labs/sdk-react-core";
 import { EthereumWalletConnectors, isEthereumWallet } from "@dynamic-labs/ethereum";
 import { defineChain } from "viem";
 
 import { Btn } from "./ui-bits";
-import { clearManualDisconnect, setState, short } from "@/lib/mezo";
+import { clearManualDisconnect, MEZO, setState, short, switchWalletToMezo } from "@/lib/mezo";
 import { DYNAMIC_ENV_ID, setWalletAdapter } from "@/lib/wallet-adapter";
 
 /** Mezo networks, for wallet calls that need a chain attached. */
@@ -27,6 +31,24 @@ const MEZO_CHAINS = {
 } as const;
 
 type MezoChain = (typeof MEZO_CHAINS)[keyof typeof MEZO_CHAINS];
+
+const DYNAMIC_MEZO_NETWORK = {
+  blockExplorerUrls: [MEZO.explorer],
+  chainId: MEZO.chainId,
+  chainName: MEZO.name,
+  iconUrls: ["/favicon.png"],
+  name: MEZO.name,
+  nativeCurrency: { decimals: 18, name: "Bitcoin", symbol: "BTC" },
+  networkId: MEZO.chainId,
+  rpcUrls: [MEZO.rpc],
+  vanityName: MEZO.name,
+  isTestnet: true,
+};
+
+function isUserRejection(error: unknown) {
+  const e = error as { code?: number; message?: string };
+  return e.code === 4001 || /reject/i.test(e.message ?? "");
+}
 
 /** The signer needs big integers for number fields; raw wallet calls take strings. */
 function normalizeTyped(typed: unknown): unknown {
@@ -55,6 +77,7 @@ function normalizeTyped(typed: unknown): unknown {
 function WalletSync() {
   const { primaryWallet, handleLogOut } = useDynamicContext();
   const syncedRef = useRef<string | null>(null);
+  const switchedRef = useRef<string | null>(null);
   const logoutRef = useRef(handleLogOut);
   useEffect(() => {
     logoutRef.current = handleLogOut;
@@ -62,6 +85,7 @@ function WalletSync() {
 
   useEffect(() => {
     if (!primaryWallet) {
+      switchedRef.current = null;
       if (syncedRef.current) {
         syncedRef.current = null;
         setWalletAdapter(null);
@@ -80,10 +104,8 @@ function WalletSync() {
     void (async () => {
       try {
         const wc = await primaryWallet.getWalletClient();
-        const chainId = await wc.getChainId();
+        let chainId = await wc.getChainId();
         if (!live) return;
-        setState({ chainId });
-        syncedRef.current = address;
         const flexible = wc as unknown as {
           sendTransaction: (args: {
             chain?: MezoChain;
@@ -94,6 +116,25 @@ function WalletSync() {
           signTypedData: (args: unknown) => Promise<string>;
           request: (args: { method: string; params?: unknown }) => Promise<unknown>;
         };
+        if (chainId !== MEZO.chainId && switchedRef.current !== address) {
+          switchedRef.current = address;
+          try {
+            try {
+              await primaryWallet.switchNetwork(MEZO.chainId);
+              chainId = await wc.getChainId();
+              if (chainId !== MEZO.chainId) await switchWalletToMezo(flexible);
+            } catch (e) {
+              if (isUserRejection(e)) throw e;
+              await switchWalletToMezo(flexible);
+            }
+            chainId = await wc.getChainId();
+          } catch {
+            // Keep the wallet where it is; the header still offers a retry.
+          }
+        }
+        if (!live) return;
+        setState({ chainId });
+        syncedRef.current = address;
         setWalletAdapter({
           sendTransaction: async (tx) => {
             const chain = MEZO_CHAINS[chainId as keyof typeof MEZO_CHAINS] ?? MEZO_CHAINS[31611];
@@ -106,14 +147,27 @@ function WalletSync() {
           },
           signTypedData: (_account, typed) => flexible.signTypedData(normalizeTyped(typed)),
           switchNetwork: async (id) => {
-            try {
-              await wc.switchChain({ id });
-            } catch {
-              await flexible.request({
-                method: "wallet_switchEthereumChain",
-                params: [{ chainId: `0x${id.toString(16)}` }],
-              });
+            if (id === MEZO.chainId) {
+              try {
+                await primaryWallet.switchNetwork(id);
+                chainId = await wc.getChainId();
+                if (chainId !== id) await switchWalletToMezo(flexible);
+              } catch (e) {
+                if (isUserRejection(e)) throw e;
+                await switchWalletToMezo(flexible);
+              }
+            } else {
+              try {
+                await wc.switchChain({ id });
+              } catch {
+                await flexible.request({
+                  method: "wallet_switchEthereumChain",
+                  params: [{ chainId: `0x${id.toString(16)}` }],
+                });
+              }
             }
+            chainId = await wc.getChainId();
+            if (chainId !== id) throw new Error("Your wallet did not switch networks.");
           },
           logout: () => logoutRef.current(),
         });
@@ -150,6 +204,11 @@ export function DynamicWalletInner({ children }: { children: ReactNode }) {
         appName: "MezoFlow",
         useMetamaskSdk: false,
         walletConnectors: [EthereumWalletConnectors],
+        walletConnectPreferredChains: ["eip155:31611"],
+        networkValidationMode: "never",
+        overrides: {
+          evmNetworks: (networks) => mergeNetworks([DYNAMIC_MEZO_NETWORK], networks),
+        },
         walletsFilter: (wallets) =>
           wallets.filter((w) => !/coinbase/i.test(w.key) && !/coinbase/i.test(w.name)),
         siweStatement:

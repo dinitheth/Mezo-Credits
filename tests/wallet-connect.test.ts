@@ -108,10 +108,14 @@ describe("switching networks", () => {
   it("asks the wallet to switch to Mezo", async () => {
     const { connectWallet, switchToMezo, getState } = await freshStore();
     const provider = walletWith([ADDR]);
+    let chain = "0x1";
     provider.request.mockImplementation(async ({ method }) => {
       if (method === "eth_requestAccounts") return [ADDR];
-      if (method === "eth_chainId") return "0x1";
-      if (method === "wallet_switchEthereumChain") return null;
+      if (method === "eth_chainId") return chain;
+      if (method === "wallet_switchEthereumChain") {
+        chain = "0x7b7b";
+        return null;
+      }
       throw new Error(method);
     });
     setProvider(provider);
@@ -129,19 +133,21 @@ describe("switching networks", () => {
 
   it("adds Mezo when the wallet does not know it yet", async () => {
     const { switchToMezo, getState } = await freshStore();
+    let switched = 0;
     const provider = browserWallet(async ({ method }) => {
       if (method === "wallet_switchEthereumChain") {
-        throw Object.assign(new Error("Unrecognized chain"), { code: 4902 });
+        if (switched++ === 0) throw Object.assign(new Error("Unrecognized chain"), { code: 4902 });
+        return null;
       }
       if (method === "wallet_addEthereumChain") return null;
+      if (method === "eth_chainId") return "0x7b7b";
       throw new Error(method);
     });
     setProvider(provider);
 
     await switchToMezo();
 
-    expect(provider.request).toHaveBeenCalledTimes(2);
-    expect(provider.request).toHaveBeenLastCalledWith(
+    expect(provider.request).toHaveBeenCalledWith(
       expect.objectContaining({
         method: "wallet_addEthereumChain",
         params: [

@@ -426,6 +426,41 @@ export async function connectWallet() {
   watchWallet(e);
 }
 
+export async function switchWalletToMezo(wallet: {
+  request: (a: { method: string; params?: unknown }) => Promise<unknown>;
+}) {
+  try {
+    await wallet.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: MEZO.chainIdHex }],
+    });
+  } catch (err: unknown) {
+    const code = (err as { code?: number }).code;
+    const message = (err as { message?: string }).message ?? "";
+    if (code !== 4902 && !/Unrecognized|not been added|unknown chain/i.test(message)) throw err;
+    await wallet.request({
+      method: "wallet_addEthereumChain",
+      params: [
+        {
+          chainId: MEZO.chainIdHex,
+          chainName: MEZO.name,
+          nativeCurrency: { name: "Bitcoin", symbol: "BTC", decimals: 18 },
+          rpcUrls: [MEZO.rpc],
+          blockExplorerUrls: [MEZO.explorer],
+        },
+      ],
+    });
+    try {
+      await wallet.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: MEZO.chainIdHex }],
+      });
+    } catch {
+      // Some wallets switch as soon as the network is added.
+    }
+  }
+}
+
 export async function switchToMezo() {
   if (await walletSwitchViaAdapter(MEZO.chainId)) {
     setState({ chainId: MEZO.chainId });
@@ -433,30 +468,10 @@ export async function switchToMezo() {
   }
   const e = eth();
   if (!e) throw new Error("No browser wallet found.");
-  try {
-    await e.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId: MEZO.chainIdHex }],
-    });
-  } catch (err: unknown) {
-    const code = (err as { code?: number }).code;
-    const message = (err as { message?: string }).message ?? "";
-    if (code === 4902 || /Unrecognized|not been added/i.test(message)) {
-      await e.request({
-        method: "wallet_addEthereumChain",
-        params: [
-          {
-            chainId: MEZO.chainIdHex,
-            chainName: MEZO.name,
-            nativeCurrency: { name: "Bitcoin", symbol: "BTC", decimals: 18 },
-            rpcUrls: [MEZO.rpc],
-            blockExplorerUrls: [MEZO.explorer],
-          },
-        ],
-      });
-    } else throw err;
-  }
-  setState({ chainId: MEZO.chainId });
+  await switchWalletToMezo(e);
+  const chainId = parseInt((await e.request({ method: "eth_chainId" })) as string, 16);
+  if (chainId !== MEZO.chainId) throw new Error("Your wallet did not switch to Mezo.");
+  setState({ chainId });
 }
 
 export const sats = (btc: number) => Math.round(btc * 1e8).toLocaleString("en-US");
