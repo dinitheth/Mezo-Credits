@@ -163,6 +163,7 @@ function Checkout() {
   return (
     <Shell>
       <div className="mx-auto max-w-xl space-y-4">
+        <h1 className="text-3xl font-bold">Pay this bill</h1>
         <Card className="text-center">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">Someone asks for</p>
           <p className="mt-2 font-mono text-4xl text-success">

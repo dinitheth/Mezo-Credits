@@ -110,7 +110,7 @@ export function CreditForm({
         />
       </div>
       {power > 0 && <Gauge cr={tier.cr} />}
-      {tier.cr < 150 && (
+      {tier.cr <= 150 && (
         <p role="alert" className="text-sm text-destructive">
           Careful: at 150% a small price drop can close your loan.
         </p>
