@@ -77,20 +77,29 @@ let state: State = {
 const subs = new Set<() => void>();
 const emit = () => {
   subs.forEach((s) => s());
-  if (typeof window !== "undefined")
-    localStorage.setItem(
-      "mezoflow",
-      JSON.stringify({
-        invoices: state.invoices,
-        activity: state.activity,
-      }),
-    );
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(
+        "mezoflow",
+        JSON.stringify({
+          invoices: state.invoices,
+          activity: state.activity,
+        }),
+      );
+    } catch {
+      // Keep wallet and app state usable when browser storage is full or blocked.
+    }
+  }
 };
 export function setState(p: Partial<State>) {
   state = { ...state, ...p };
   if (typeof window !== "undefined" && p.account !== undefined) {
-    if (p.account) localStorage.setItem("mezoflow_last_wallet", p.account);
-    else localStorage.removeItem("mezoflow_last_wallet");
+    try {
+      if (p.account) localStorage.setItem("mezoflow_last_wallet", p.account);
+      else localStorage.removeItem("mezoflow_last_wallet");
+    } catch {
+      // The current connection still works even if remembering it fails.
+    }
     state.lastWallet = p.account ?? null;
   }
   emit();
@@ -332,91 +341,16 @@ function stopWatching() {
   chainHandler = null;
 }
 
-const MANUAL_KEY = "mezoflow_manual_disconnect";
-
-/** True after the person chose Disconnect; quiet reconnect stays off until they connect again. */
-export function isManualDisconnected(): boolean {
-  try {
-    return localStorage.getItem(MANUAL_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-export function clearManualDisconnect() {
-  try {
-    localStorage.removeItem(MANUAL_KEY);
-  } catch {
-    // Storage unavailable: nothing to clear.
-  }
-}
-
-function rememberManualDisconnect() {
-  try {
-    localStorage.setItem(MANUAL_KEY, "1");
-  } catch {
-    // Storage unavailable: the current page still disconnects.
-  }
-}
-
 /** Leave the wallet behind on purpose, and do not silently reconnect on refresh. */
 export function disconnectWallet() {
   const adapter = getWalletAdapter();
   if (adapter?.logout) void Promise.resolve(adapter.logout()).catch(() => {});
   stopWatching();
   activeProvider = null;
-  rememberManualDisconnect();
   setState({ account: null, chainId: null });
 }
 
-/**
- * Quietly reconnect on page load using accounts the wallet already approved.
- * Checks every installed wallet, so it works even with several installed.
- * No popup: eth_accounts only returns accounts the user already shared.
- */
-export async function restoreWallet() {
-  if (isManualDisconnected()) return false;
-  const wallets = installedWallets();
-  for (const p of wallets) {
-    try {
-      const accounts = (await p.request({ method: "eth_accounts" })) as string[];
-      const first = accounts?.[0];
-      if (!first) continue;
-      activeProvider = p;
-      watchWallet(p);
-      const cid = parseInt((await p.request({ method: "eth_chainId" })) as string, 16);
-      setState({ account: first, chainId: cid });
-      return true;
-    } catch {
-      // This wallet refused; try the next one.
-    }
-  }
-  return false;
-}
-
-/**
- * Reconnect quietly on page load, retrying briefly in case the wallet
- * extension is still starting up. Never shows a popup.
- */
-export function autoRestore() {
-  if (isManualDisconnected()) return;
-  let tries = 0;
-  const attempt = async () => {
-    tries += 1;
-    const ok = (await restoreWallet()) || Boolean(getState().account);
-    if (ok || tries >= 8) {
-      window.clearInterval(timer);
-      window.removeEventListener("focus", onFocus);
-    }
-  };
-  const onFocus = () => void attempt();
-  const timer = window.setInterval(() => void attempt(), 1500);
-  window.addEventListener("focus", onFocus);
-  void attempt();
-}
-
 export async function connectWallet() {
-  clearManualDisconnect();
   const e = eth() ?? installedWallets()[0];
   if (!e) throw new Error("No browser wallet found. Install MetaMask or another EVM wallet.");
   activeProvider = e;

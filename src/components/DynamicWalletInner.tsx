@@ -8,7 +8,7 @@ import { EthereumWalletConnectors, isEthereumWallet } from "@dynamic-labs/ethere
 import { defineChain } from "viem";
 
 import { Btn } from "./ui-bits";
-import { clearManualDisconnect, MEZO, setState, short, switchWalletToMezo } from "@/lib/mezo";
+import { MEZO, setState, short, switchWalletToMezo } from "@/lib/mezo";
 import { DYNAMIC_ENV_ID, setWalletAdapter } from "@/lib/wallet-adapter";
 
 /** Mezo networks, for wallet calls that need a chain attached. */
@@ -45,11 +45,6 @@ const DYNAMIC_MEZO_NETWORK = {
   isTestnet: true,
 };
 
-function isUserRejection(error: unknown) {
-  const e = error as { code?: number; message?: string };
-  return e.code === 4001 || /reject/i.test(e.message ?? "");
-}
-
 /** The signer needs big integers for number fields; raw wallet calls take strings. */
 function normalizeTyped(typed: unknown): unknown {
   const t = typed as {
@@ -77,7 +72,6 @@ function normalizeTyped(typed: unknown): unknown {
 function WalletSync() {
   const { primaryWallet, handleLogOut } = useDynamicContext();
   const syncedRef = useRef<string | null>(null);
-  const switchedRef = useRef<string | null>(null);
   const logoutRef = useRef(handleLogOut);
   useEffect(() => {
     logoutRef.current = handleLogOut;
@@ -85,7 +79,6 @@ function WalletSync() {
 
   useEffect(() => {
     if (!primaryWallet) {
-      switchedRef.current = null;
       if (syncedRef.current) {
         syncedRef.current = null;
         setWalletAdapter(null);
@@ -94,8 +87,7 @@ function WalletSync() {
       return;
     }
     const address = primaryWallet.address;
-    clearManualDisconnect();
-    setState({ account: address });
+    setState({ account: address, chainId: null });
     if (!isEthereumWallet(primaryWallet)) {
       setWalletAdapter(null);
       return;
@@ -116,22 +108,6 @@ function WalletSync() {
           signTypedData: (args: unknown) => Promise<string>;
           request: (args: { method: string; params?: unknown }) => Promise<unknown>;
         };
-        if (chainId !== MEZO.chainId && switchedRef.current !== address) {
-          switchedRef.current = address;
-          try {
-            try {
-              await primaryWallet.switchNetwork(MEZO.chainId);
-              chainId = await wc.getChainId();
-              if (chainId !== MEZO.chainId) await switchWalletToMezo(flexible);
-            } catch (e) {
-              if (isUserRejection(e)) throw e;
-              await switchWalletToMezo(flexible);
-            }
-            chainId = await wc.getChainId();
-          } catch {
-            // Keep the wallet where it is; the header still offers a retry.
-          }
-        }
         if (!live) return;
         setState({ chainId });
         syncedRef.current = address;

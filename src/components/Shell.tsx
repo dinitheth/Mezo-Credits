@@ -1,9 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Moon, Sun } from "lucide-react";
 import {
   MEZO,
-  autoRestore,
   connectWallet,
   disconnectWallet,
   hydrateStore,
@@ -22,10 +21,16 @@ export function Shell({ children }: { children: ReactNode }) {
   const s = useStore();
   const [err, setErr] = useState<string | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [walletAction, setWalletAction] = useState<"connect" | "switch" | null>(null);
+  const walletPendingRef = useRef(false);
   useEffect(() => {
     hydrateStore();
-    autoRestore();
-    const saved = localStorage.getItem(THEME_KEY);
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem(THEME_KEY);
+    } catch {
+      // Use the default theme when browser storage is unavailable.
+    }
     if (saved === "dark" || saved === "light") {
       setTheme(saved);
       document.documentElement.classList.toggle("dark", saved === "dark");
@@ -34,14 +39,28 @@ export function Shell({ children }: { children: ReactNode }) {
   const toggleTheme = () => {
     const next = theme === "light" ? "dark" : "light";
     setTheme(next);
-    localStorage.setItem(THEME_KEY, next);
+    try {
+      localStorage.setItem(THEME_KEY, next);
+    } catch {
+      // Theme changes still apply for this page when storage is unavailable.
+    }
     document.documentElement.classList.toggle("dark", next === "dark");
   };
-  const wrong = s.account && s.chainId !== MEZO.chainId;
-  const run = (f: () => Promise<void>) =>
-    f()
-      .then(() => setErr(null))
-      .catch((e) => setErr(friendly(e)));
+  const wrong = s.account && s.chainId !== null && s.chainId !== MEZO.chainId;
+  const run = async (action: "connect" | "switch", f: () => Promise<void>) => {
+    if (walletPendingRef.current) return;
+    walletPendingRef.current = true;
+    setWalletAction(action);
+    try {
+      await f();
+      setErr(null);
+    } catch (e) {
+      setErr(friendly(e));
+    } finally {
+      walletPendingRef.current = false;
+      setWalletAction(null);
+    }
+  };
   const nav = "rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground";
   const active = { className: "bg-secondary text-foreground" };
   return (
@@ -103,9 +122,10 @@ export function Shell({ children }: { children: ReactNode }) {
             <Btn
               variant="ghost"
               className="border-destructive text-destructive"
-              onClick={() => run(switchToMezo)}
+              disabled={walletAction !== null}
+              onClick={() => run("switch", switchToMezo)}
             >
-              Switch to Mezo
+              {walletAction === "switch" ? "Switching…" : "Switch to Mezo"}
             </Btn>
           )}
           {s.account ? (
@@ -130,14 +150,18 @@ export function Shell({ children }: { children: ReactNode }) {
               remembered={s.lastWallet}
               fallback={
                 <Btn
+                  disabled={walletAction !== null}
                   onClick={() =>
-                    run(async () => {
+                    run("connect", async () => {
                       await connectWallet();
-                      await switchToMezo().catch(() => {});
                     })
                   }
                 >
-                  {s.lastWallet ? `Reconnect ${short(s.lastWallet)}` : "Connect wallet"}
+                  {walletAction === "connect"
+                    ? "Connecting…"
+                    : s.lastWallet
+                      ? `Reconnect ${short(s.lastWallet)}`
+                      : "Connect wallet"}
                 </Btn>
               }
             />
