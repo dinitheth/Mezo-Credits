@@ -12,7 +12,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { DynamicWalletRoot } from "../components/DynamicWallet";
+import { RainbowWalletRoot } from "../components/RainbowWallet";
 
 function NotFoundComponent() {
   return (
@@ -123,10 +123,10 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <DynamicWalletRoot>
+      <RainbowWalletRoot>
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <Outlet />
-      </DynamicWalletRoot>
+      </RainbowWalletRoot>
     </QueryClientProvider>
   );
 }

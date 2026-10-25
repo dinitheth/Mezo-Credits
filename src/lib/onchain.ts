@@ -163,6 +163,8 @@ type EthProvider = {
 
 function provider(): EthProvider | null {
   if (typeof window === "undefined") return null;
+  const connected = getWalletAdapter()?.request;
+  if (connected) return { request: connected };
   const e = (window as unknown as { ethereum?: EthProvider }).ethereum;
   return e ?? null;
 }

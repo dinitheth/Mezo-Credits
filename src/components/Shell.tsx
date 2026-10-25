@@ -3,7 +3,6 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Moon, Sun } from "lucide-react";
 import {
   MEZO,
-  connectWallet,
   disconnectWallet,
   hydrateStore,
   short,
@@ -12,7 +11,7 @@ import {
 } from "@/lib/mezo";
 import mezoLogo from "@/assets/mezoflow-logo.png";
 import { Btn } from "./ui-bits";
-import { DynamicConnectArea } from "./DynamicWallet";
+import { RainbowConnectArea } from "./RainbowWallet";
 import { friendly } from "@/lib/errors";
 
 const THEME_KEY = "mezoflow-theme";
@@ -27,7 +26,7 @@ export function Shell({
   const s = useStore();
   const [err, setErr] = useState<string | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
-  const [walletAction, setWalletAction] = useState<"connect" | "switch" | null>(null);
+  const [walletAction, setWalletAction] = useState<"switch" | null>(null);
   const walletPendingRef = useRef(false);
   useEffect(() => {
     hydrateStore();
@@ -53,7 +52,7 @@ export function Shell({
     document.documentElement.classList.toggle("dark", next === "dark");
   };
   const wrong = s.account && s.chainId !== null && s.chainId !== MEZO.chainId;
-  const run = async (action: "connect" | "switch", f: () => Promise<void>) => {
+  const run = async (action: "switch", f: () => Promise<void>) => {
     if (walletPendingRef.current) return;
     walletPendingRef.current = true;
     setWalletAction(action);
@@ -154,25 +153,7 @@ export function Shell({
               </Btn>
             </span>
           ) : (
-            <DynamicConnectArea
-              remembered={s.lastWallet}
-              fallback={
-                <Btn
-                  disabled={walletAction !== null}
-                  onClick={() =>
-                    run("connect", async () => {
-                      await connectWallet();
-                    })
-                  }
-                >
-                  {walletAction === "connect"
-                    ? "Connecting…"
-                    : s.lastWallet
-                      ? `Reconnect ${short(s.lastWallet)}`
-                      : "Connect wallet"}
-                </Btn>
-              }
-            />
+            <RainbowConnectArea remembered={s.lastWallet} disabled={walletAction !== null} />
           )}
         </div>
       </header>

@@ -56,7 +56,7 @@ uses the test network until those addresses are set.
 - **Built with:** TanStack Start v1, React 19, Vite 8, Tailwind v4, `viem`, Solidity 0.8.20 (`InvoiceRouter` and `FlowVault`).
 - **Proof:** payment contract above + its first deploy receipt `0x631a15b33f687cbe5120f3841f3e052f3afeaeb4a1eec50bec190fad70df5338` (block 16173807).
 - **Extra settings (optional):** `VITE_ROUTER_ADDRESS_TESTNET`, `VITE_ROUTER_ADDRESS_MAINNET`, `VITE_VAULT_ADDRESS_TESTNET`, `VITE_VAULT_ADDRESS_MAINNET`, `VITE_FLOW_START_BLOCK_TESTNET`, `VITE_MEZO_TOKEN_TESTNET`, `VITE_MEZO_TOKEN_MAINNET`. See `.env.example`.
-- **Global wallet kit (optional):** set `VITE_DYNAMIC_ENVIRONMENT_ID` (from https://app.dynamic.xyz) to let people sign in with email or a wallet of their choice. Coinbase Wallet is left out on purpose. Without the setting, the app uses the built-in wallet connection.
+- **Wallet connection:** RainbowKit with Backpack and injected browser wallets. Coinbase Wallet and WalletConnect connectors are not included.
 
 ## Checks before sending in
 

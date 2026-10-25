@@ -4,6 +4,7 @@
  * itself here after a global wallet connects.
  */
 export type WalletAdapter = {
+  request?: (args: { method: string; params?: unknown }) => Promise<unknown>;
   sendTransaction: (tx: {
     from: string;
     to: string;
@@ -35,10 +36,3 @@ export async function walletSwitchViaAdapter(chainId: number): Promise<boolean> 
     return false;
   }
 }
-
-/** The wallet kit turns on only when its environment ID is configured. */
-export const DYNAMIC_ENV_ID =
-  (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.[
-    "VITE_DYNAMIC_ENVIRONMENT_ID"
-  ]?.trim() ?? "";
-export const dynamicWalletEnabled = DYNAMIC_ENV_ID.length > 0;

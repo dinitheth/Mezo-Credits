@@ -17,8 +17,6 @@
     "rolldown": "1.2.1"
   },
   "dependencies": {
-    "@dynamic-labs/ethereum": "^5.11.0",
-    "@dynamic-labs/sdk-react-core": "^5.11.0",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -46,6 +44,7 @@
     "@radix-ui/react-toggle": "^1.1.10",
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@rainbow-me/rainbowkit": "^2.2.11",
     "@tailwindcss/vite": "^4.2.1",
     "@tanstack/react-query": "^5.101.1",
     "@tanstack/react-router": "1.170.41",
@@ -72,6 +71,7 @@
     "vaul": "^1.1.2",
     "viem": "^2.37.0",
     "vite-tsconfig-paths": "^6.0.2",
+    "wagmi": "^2.19.5",
     "zod": "^3.25.76"
   },
   "devDependencies": {
