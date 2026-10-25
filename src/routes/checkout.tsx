@@ -155,13 +155,13 @@ function Checkout() {
 
   if (!inv.amount || !inv.to)
     return (
-      <Shell>
+      <Shell showNavigation={false}>
         <Card>This payment link is missing details. Ask the sender for a new one.</Card>
       </Shell>
     );
 
   return (
-    <Shell>
+    <Shell showNavigation={false}>
       <div className="mx-auto max-w-xl space-y-4">
         <h1 className="text-3xl font-bold">Pay this bill</h1>
         <Card className="text-center">

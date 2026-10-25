@@ -10,11 +10,15 @@ export function InvoiceQR({
   amount,
   description,
   compact,
+  onShare,
+  showShareAction = true,
 }: {
   url: string;
   amount: number;
   description: string;
   compact?: boolean;
+  onShare?: (() => void) | undefined;
+  showShareAction?: boolean;
 }) {
   const s = useStore();
   const wrap = useRef<HTMLDivElement>(null);
@@ -31,6 +35,10 @@ export function InvoiceQR({
     a.click();
   };
   const share = async () => {
+    if (onShare) {
+      onShare();
+      return;
+    }
     try {
       if (navigator.share)
         await navigator.share({
@@ -87,10 +95,12 @@ export function InvoiceQR({
             <Download className="h-4 w-4" aria-hidden="true" />
             Save code
           </Btn>
-          <Btn variant="ghost" className="py-1.5" onClick={share}>
-            <Share2 className="h-4 w-4" aria-hidden="true" />
-            Share
-          </Btn>
+          {showShareAction && (
+            <Btn variant="ghost" className="py-1.5" onClick={() => void share()}>
+              <Share2 className="h-4 w-4" aria-hidden="true" />
+              Share
+            </Btn>
+          )}
         </div>
         {note && (
           <p className="text-xs text-success" aria-live="polite">

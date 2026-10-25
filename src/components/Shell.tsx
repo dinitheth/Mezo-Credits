@@ -17,7 +17,13 @@ import { friendly } from "@/lib/errors";
 
 const THEME_KEY = "mezoflow-theme";
 
-export function Shell({ children }: { children: ReactNode }) {
+export function Shell({
+  children,
+  showNavigation = true,
+}: {
+  children: ReactNode;
+  showNavigation?: boolean;
+}) {
   const s = useStore();
   const [err, setErr] = useState<string | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -76,26 +82,28 @@ export function Shell({ children }: { children: ReactNode }) {
           />
           Mezo<span className="text-success">Flow</span>
         </Link>
-        <nav className="order-last flex w-full gap-1 overflow-x-auto whitespace-nowrap lg:order-none lg:w-auto">
-          <Link to="/dashboard" className={nav} activeProps={active}>
-            Home
-          </Link>
-          <Link to="/borrow" className={nav} activeProps={active}>
-            Plan
-          </Link>
-          <Link to="/earn" className={nav} activeProps={active}>
-            Grow
-          </Link>
-          <Link to="/pay" className={nav} activeProps={active}>
-            Get paid
-          </Link>
-          <Link to="/activity" className={nav} activeProps={active}>
-            Past payments
-          </Link>
-          <Link to="/how-it-works" className={nav} activeProps={active}>
-            How it works
-          </Link>
-        </nav>
+        {showNavigation && (
+          <nav className="order-last flex w-full gap-1 overflow-x-auto whitespace-nowrap lg:order-none lg:w-auto">
+            <Link to="/dashboard" className={nav} activeProps={active}>
+              Home
+            </Link>
+            <Link to="/borrow" className={nav} activeProps={active}>
+              Plan
+            </Link>
+            <Link to="/earn" className={nav} activeProps={active}>
+              Grow
+            </Link>
+            <Link to="/pay" className={nav} activeProps={active}>
+              Get paid
+            </Link>
+            <Link to="/activity" className={nav} activeProps={active}>
+              Past payments
+            </Link>
+            <Link to="/how-it-works" className={nav} activeProps={active}>
+              How it works
+            </Link>
+          </nav>
+        )}
         <div className="ml-auto flex items-center gap-2">
           <a
             href="https://faucet.test.mezo.org/"
