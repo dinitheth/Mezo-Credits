@@ -1,18 +1,24 @@
 import "@rainbow-me/rainbowkit/styles.css";
 
 import { useEffect, type ReactNode } from "react";
-import { ConnectButton, connectorsForWallets, RainbowKitProvider } from "@rainbow-me/rainbowkit";
-import { backpackWallet, injectedWallet } from "@rainbow-me/rainbowkit/wallets";
+import {
+  ConnectButton,
+  connectorsForWallets,
+  RainbowKitProvider,
+  type Wallet,
+  type WalletList,
+} from "@rainbow-me/rainbowkit";
 import {
   createConfig,
   http,
+  injected,
   WagmiProvider,
   useAccount,
   useDisconnect,
   useSwitchChain,
   useWalletClient,
 } from "wagmi";
-import { defineChain, type Address, type Hex } from "viem";
+import { defineChain, type Address, type EIP1193Provider, type Hex } from "viem";
 
 import { MEZO, setState, short, switchWalletToMezo } from "@/lib/mezo";
 import { setWalletAdapter } from "@/lib/wallet-adapter";
@@ -35,16 +41,75 @@ const mezoMainnet = defineChain({
   blockExplorers: { default: { name: "Mezo Explorer", url: "https://explorer.mezo.org" } },
 });
 
+type InjectedProvider = EIP1193Provider & {
+  isBackpack?: true;
+  isMetaMask?: true;
+  providers?: InjectedProvider[];
+};
+
+type InjectedWindow = {
+  ethereum?: InjectedProvider;
+  backpack?: { ethereum?: InjectedProvider };
+};
+
+function walletIcon(letter: string, color: string) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="20" fill="${color}"/><text x="20" y="27" text-anchor="middle" font-family="Arial,sans-serif" font-size="22" font-weight="700" fill="white">${letter}</text></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+function injectedWalletEntry(
+  id: string,
+  name: string,
+  letter: string,
+  color: string,
+  target?: NonNullable<Parameters<typeof injected>[0]>["target"],
+): () => Wallet {
+  return () => ({
+    id,
+    name,
+    iconUrl: walletIcon(letter, color),
+    iconBackground: color,
+    createConnector: () => injected(target ? { target } : {}),
+  });
+}
+
+const mezoWallets: WalletList = [
+  {
+    groupName: "Browser wallets",
+    wallets: [
+      injectedWalletEntry("metamask", "MetaMask", "M", "#e27625", {
+        id: "metamask",
+        name: "MetaMask",
+        provider: (targetWindow) => {
+          const ethereum = (targetWindow as unknown as InjectedWindow).ethereum;
+          return ethereum?.providers?.find((provider) => provider.isMetaMask) ??
+            (ethereum?.isMetaMask ? ethereum : undefined);
+        },
+      }),
+      injectedWalletEntry("backpack", "Backpack", "B", "#e13e3e", {
+        id: "backpack",
+        name: "Backpack",
+        provider: (targetWindow) => {
+          const walletWindow = targetWindow as unknown as InjectedWindow;
+          const backpack = walletWindow.backpack?.ethereum;
+          const ethereum = walletWindow.ethereum;
+          return backpack ?? ethereum?.providers?.find((provider) => provider.isBackpack) ??
+            (ethereum?.isBackpack ? ethereum : undefined);
+        },
+      }),
+      injectedWalletEntry("other-injected", "Other browser wallet", "W", "#315c48"),
+    ],
+  },
+];
+
 const wagmiConfig = createConfig({
   chains: [mezoTestnet, mezoMainnet],
-  connectors: connectorsForWallets(
-    [{ groupName: "Browser wallets", wallets: [backpackWallet, injectedWallet] }],
-    {
-      // These two entries use injected browser providers; neither uses WalletConnect.
-      projectId: "unused-no-walletconnect-connectors",
-      appName: "MezoFlow",
-    },
-  ),
+  // Only our injected MetaMask, Backpack, and generic browser connectors are listed.
+  // None of these wallet entries creates a WalletConnect or Coinbase connector.
+  connectors: connectorsForWallets(mezoWallets, {
+    projectId: "unused-no-walletconnect-connectors",
+    appName: "MezoFlow",
+  }),
   transports: {
     [mezoTestnet.id]: http(),
     [mezoMainnet.id]: http(),
