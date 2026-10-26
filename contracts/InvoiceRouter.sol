@@ -90,9 +90,11 @@ contract InvoiceRouter {
   function _splitSig(bytes calldata sig) private pure returns (uint8 v, bytes32 r, bytes32 s) {
     require(sig.length == 65, "bad sig len");
     assembly {
-      r := calldataload(add(sig.offset, 0x20))
-      s := calldataload(add(sig.offset, 0x40))
-      v := byte(0, calldataload(add(sig.offset, 0x60)))
+      // `sig.offset` already points to the first signature byte. Starting at
+      // +0x20 shifted every component and made ecrecover reject valid signatures.
+      r := calldataload(sig.offset)
+      s := calldataload(add(sig.offset, 0x20))
+      v := byte(0, calldataload(add(sig.offset, 0x40)))
     }
     if (v < 27) v += 27;
   }

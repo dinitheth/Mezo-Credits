@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Btn, Field, Gauge, Stat, Tip, cleanNum, inputCls } from "./ui-bits";
 import { MIN_CR, TIERS, liqPrice, num, usd, useStore } from "@/lib/mezo";
+import { parseMUSD } from "@/lib/onchain";
 import { cn } from "@/lib/utils";
 
 /** Borrowing planner, wired to the pool contract by the Borrow page. */
@@ -8,12 +9,17 @@ export function CreditForm({
   onBorrow,
   borrowing,
   walletMusd,
+  walletBtcWei,
+  walletBtcError,
   poolSize,
 }: {
   onBorrow?: ((info: { btc: number; amount: number; tier: number }) => void) | undefined;
   borrowing?: boolean | undefined;
   /** MUSD already in the connected wallet; undefined hides the line. */
   walletMusd?: number | null | undefined;
+  /** Exact native BTC balance, in wei. Null while unavailable or disconnected. */
+  walletBtcWei?: bigint | null | undefined;
+  walletBtcError?: boolean | undefined;
   /** Current pool balance; undefined hides the line. */
   poolSize?: number | null | undefined;
 }) {
@@ -33,6 +39,11 @@ export function CreditForm({
   }, [maxBtc, btcIn]);
 
   const btc = Math.min(Number(btcIn) || 0, maxBtc ?? Infinity);
+  const enteredBtcWei = /^\d+(\.\d+)?$/.test(btcIn) ? parseMUSD(btcIn) : 0n;
+  const insufficientBtc = Boolean(
+    s.account && walletBtcWei !== undefined && walletBtcWei !== null && enteredBtcWei > walletBtcWei,
+  );
+  const balanceUnavailable = s.account !== null && walletBtcWei === null;
   const rawPower = price > 0 ? (btc * price * 100) / tier.cr : 0;
   const power =
     poolSize !== undefined && poolSize !== null ? Math.min(rawPower, poolSize) : rawPower;
@@ -74,6 +85,33 @@ export function CreditForm({
           onChange={(e) => setBtcIn(cleanNum(e.target.value))}
         />
       </Field>
+      {s.account && walletBtcWei !== undefined && walletBtcWei !== null && (
+        <p
+          className={cn(
+            "-mt-3 text-xs",
+            insufficientBtc ? "text-destructive" : "text-muted-foreground",
+          )}
+        >
+          Wallet balance: {num(Number(walletBtcWei) / 1e18, 6)} BTC
+          {insufficientBtc &&
+            ` · Insufficient wallet balance. You entered ${num(Number(enteredBtcWei) / 1e18, 8)} BTC.`}
+        </p>
+      )}
+      {s.account && walletBtcWei !== undefined && walletBtcWei !== null && !insufficientBtc && (
+        <p className="-mt-3 text-xs text-muted-foreground">
+          Keep some BTC in your wallet for the network fee.
+        </p>
+      )}
+      {s.account && walletBtcError && (
+        <p role="alert" className="-mt-3 text-xs text-destructive">
+          Could not check your wallet BTC balance. Borrowing is disabled until it can be checked.
+        </p>
+      )}
+      {s.account && balanceUnavailable && !walletBtcError && (
+        <p className="-mt-3 text-xs text-muted-foreground" aria-live="polite">
+          Checking your wallet BTC balance…
+        </p>
+      )}
       {maxBtc !== null && poolSize !== undefined && poolSize !== null && (
         <p className="-mt-3 text-xs text-muted-foreground">
           The pool holds {num(poolSize, 2)} MUSD, so at this safety level you can lock up to{" "}
@@ -133,7 +171,7 @@ export function CreditForm({
           {onBorrow && (
             <Btn
               className="mt-3 w-full py-3"
-              disabled={borrowing || btc <= 0}
+              disabled={borrowing || btc <= 0 || insufficientBtc || balanceUnavailable}
               onClick={() => onBorrow({ btc, amount: power, tier: tier.cr })}
             >
               {borrowing ? "Borrowing…" : `Borrow ${num(power, 2)} MUSD`}

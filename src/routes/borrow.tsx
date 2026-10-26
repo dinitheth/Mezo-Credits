@@ -9,6 +9,7 @@ import { logActivity, num, setActivityStatus, useStore } from "@/lib/mezo";
 import { friendly } from "@/lib/errors";
 import {
   didSucceed,
+  getBtcBalanceWei,
   getMusdBalance,
   getVaultGlobals,
   getVaultPosition,
@@ -51,6 +52,8 @@ function Borrow() {
   const onMezo = !s.chainId || s.chainId === 31611 || s.chainId === 31612;
   const [poolSize, setPoolSize] = useState<number | null>(null);
   const [walletMusd, setWalletMusd] = useState<number | null>(null);
+  const [walletBtcWei, setWalletBtcWei] = useState<bigint | null>(null);
+  const [walletBtcError, setWalletBtcError] = useState(false);
   const [poolPrice, setPoolPrice] = useState<bigint>(0n);
   const [priceTime, setPriceTime] = useState<bigint>(0n);
   const [vaultOwner, setVaultOwner] = useState<string | null>(null);
@@ -95,6 +98,37 @@ function Borrow() {
 
   useEffect(() => {
     let live = true;
+    if (!s.account || !onMezo) {
+      setWalletBtcWei(null);
+      setWalletBtcError(false);
+      return;
+    }
+    setWalletBtcWei(null);
+    setWalletBtcError(false);
+    const loadBalance = async () => {
+      try {
+        const balance = await getBtcBalanceWei(s.account!);
+        if (live) {
+          setWalletBtcWei(balance);
+          setWalletBtcError(false);
+        }
+      } catch {
+        if (live) {
+          setWalletBtcWei(null);
+          setWalletBtcError(true);
+        }
+      }
+    };
+    void loadBalance();
+    const timer = window.setInterval(() => void loadBalance(), 15_000);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+    };
+  }, [s.account, s.chainId, onMezo]);
+
+  useEffect(() => {
+    let live = true;
     const musd = musdAddressFor(s.chainId ?? 31611);
     if (!s.account || !musd) {
       setWalletMusd(null);
@@ -121,6 +155,13 @@ function Borrow() {
       if (!vault) throw new Error("The pool is not open yet. It opens right after launch.");
       if (s.chainId !== 31611 && s.chainId !== 31612)
         throw new Error("Switch to the Mezo network in your wallet first.");
+      const btcBalance = await getBtcBalanceWei(s.account);
+      setWalletBtcWei(btcBalance);
+      setWalletBtcError(false);
+      if (parseMUSD(info.btc.toString()) > btcBalance)
+        throw new Error(
+          `Insufficient wallet balance. You have ${num(Number(btcBalance) / 1e18, 6)} BTC.`,
+        );
       if (!s.priceLive || s.btcPrice <= 0) throw new Error("Waiting on the live price. Try again.");
       let pos = await getVaultPosition(vault, s.account);
       const want = parseMUSD(info.amount.toFixed(2));
@@ -258,6 +299,8 @@ function Borrow() {
             onBorrow={vault && onMezo ? borrow : undefined}
             borrowing={busy}
             walletMusd={walletMusd}
+            walletBtcWei={walletBtcWei}
+            walletBtcError={walletBtcError}
             poolSize={poolSize}
           />
         </Card>

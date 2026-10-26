@@ -220,12 +220,17 @@ export async function getMezoTokenBalance(
 }
 
 /** Real read: Bitcoin (the native coin on Mezo) in the connected wallet. */
-export async function getBtcBalance(account: string): Promise<number> {
+export async function getBtcBalanceWei(account: string): Promise<bigint> {
   const e = provider();
   const hex = e
     ? ((await e.request({ method: "eth_getBalance", params: [account, "latest"] })) as string)
     : ((await rpcCall("eth_getBalance", [account, "latest"])) as string);
-  return Number(BigInt(hex)) / 1e18;
+  return BigInt(hex);
+}
+
+/** Real read: Bitcoin (the native coin on Mezo) in the connected wallet. */
+export async function getBtcBalance(account: string): Promise<number> {
+  return Number(await getBtcBalanceWei(account)) / 1e18;
 }
 
 export async function getChainId(): Promise<number> {

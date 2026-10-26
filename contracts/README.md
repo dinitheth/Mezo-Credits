@@ -2,10 +2,14 @@
 
 Both have zero imports. Compiler `0.8.20`, optimizer on, EVM default.
 
-## InvoiceRouter — payments (live)
+## InvoiceRouter — payments
 
-Deployed (Mezo testnet 31611): `0x99A9554C090C206a3811604448E5a29CAaB00d45`
-Deploy receipt: `0x631a15b33f687cbe5120f3841f3e052f3afeaeb4a1eec50bec190fad70df5338` (block 16173807). Verified as `InvoiceRouter` on `explorer.test.mezo.org`.
+The earlier testnet deployment at `0x99A9554C090C206a3811604448E5a29CAaB00d45` has a signature parsing bug and cannot settle receipt-based bills. Contracts cannot be upgraded in place; deploy the corrected source as a new router:
+
+1. In Remix, open `contracts/InvoiceRouter.sol` and compile with Solidity `0.8.20`, optimizer on, EVM default.
+2. Connect the wallet to Mezo testnet (chain `31611`) and deploy `InvoiceRouter` with MUSD constructor address `0x118917a40FAF1CD7a13DB0Ef56C86De7973Ac503`.
+3. Set `VITE_ROUTER_ADDRESS_TESTNET` to the new router address in the hosting provider, then redeploy the app.
+4. Test with a small bill and confirm the `payInvoice` transaction succeeds and emits `InvoicePaid` before using it for other payments.
 
 ## FlowVault — our own lending pool (live)
 
