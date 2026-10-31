@@ -12,6 +12,7 @@ export function CreditForm({
   walletBtcWei,
   walletBtcError,
   poolSize,
+  priceOverride,
 }: {
   onBorrow?: ((info: { btc: number; amount: number; tier: number }) => void) | undefined;
   borrowing?: boolean | undefined;
@@ -20,13 +21,16 @@ export function CreditForm({
   /** Exact native BTC balance, in wei. Null while unavailable or disconnected. */
   walletBtcWei?: bigint | null | undefined;
   walletBtcError?: boolean | undefined;
-  /** Current pool balance; undefined hides the line. */
+  /** Cash free to borrow; undefined hides the line. */
   poolSize?: number | null | undefined;
+  /** Price from the pool contract, which reads Mezo's PriceFeed. */
+  priceOverride?: number | undefined;
 }) {
   const s = useStore();
   const [tier, setTier] = useState<(typeof TIERS)[number]>(TIERS[1]);
   const [btcIn, setBtcIn] = useState("");
-  const price = s.btcPrice;
+  const fromMezo = Boolean(priceOverride && priceOverride > 0);
+  const price = fromMezo ? (priceOverride as number) : s.btcPrice;
 
   const maxBtc =
     price > 0 && poolSize !== undefined && poolSize !== null
@@ -41,7 +45,10 @@ export function CreditForm({
   const btc = Math.min(Number(btcIn) || 0, maxBtc ?? Infinity);
   const enteredBtcWei = /^\d+(\.\d+)?$/.test(btcIn) ? parseMUSD(btcIn) : 0n;
   const insufficientBtc = Boolean(
-    s.account && walletBtcWei !== undefined && walletBtcWei !== null && enteredBtcWei > walletBtcWei,
+    s.account &&
+    walletBtcWei !== undefined &&
+    walletBtcWei !== null &&
+    enteredBtcWei > walletBtcWei,
   );
   const balanceUnavailable = s.account !== null && walletBtcWei === null;
   const rawPower = price > 0 ? (btc * price * 100) / tier.cr : 0;
@@ -114,17 +121,17 @@ export function CreditForm({
       )}
       {maxBtc !== null && poolSize !== undefined && poolSize !== null && (
         <p className="-mt-3 text-xs text-muted-foreground">
-          The pool holds {num(poolSize, 2)} MUSD, so at this safety level you can lock up to{" "}
-          {maxBtc.toFixed(6)} BTC here.
+          The pool has {num(poolSize, 2)} MUSD free to borrow, so at this safety level you can lock
+          up to {maxBtc.toFixed(6)} BTC here.
         </p>
       )}
 
       <p className="text-sm text-muted-foreground">
         Bitcoin price right now:{" "}
         <span className="font-mono text-foreground">
-          {s.priceLive && price > 0 ? usd(price) : "loading…"}
+          {(fromMezo || s.priceLive) && price > 0 ? usd(price) : "loading…"}
         </span>
-        {s.priceLive && price > 0 && <span className="text-xs"> · live</span>}
+        {price > 0 && <span className="text-xs"> · {fromMezo ? "from Mezo" : "live"}</span>}
       </p>
 
       <div className="grid grid-cols-3 gap-4 rounded-lg border p-4">

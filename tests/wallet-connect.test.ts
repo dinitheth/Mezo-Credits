@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const ADDR = "0x5555555555555555555555555555555555555555";
-const MANUAL_KEY = "mezoflow_manual_disconnect";
 
 type Request = (args: { method: string; params?: unknown }) => Promise<unknown>;
 
@@ -36,63 +35,7 @@ beforeEach(() => {
   delete (window as unknown as { ethereum?: unknown }).ethereum;
 });
 
-describe("quiet reconnect", () => {
-  it("restores a wallet the browser already approved", async () => {
-    const { restoreWallet, getState } = await freshStore();
-    const provider = walletWith([ADDR]);
-    setProvider(provider);
-
-    await expect(restoreWallet()).resolves.toBe(true);
-    expect(getState().account).toBe(ADDR);
-    expect(getState().chainId).toBe(31611);
-    expect(provider.request).toHaveBeenCalledWith({ method: "eth_accounts" });
-    expect(localStorage.getItem("mezoflow_last_wallet")).toBe(ADDR);
-  });
-
-  it("does nothing after the person chose to disconnect", async () => {
-    const { restoreWallet, isManualDisconnected } = await freshStore();
-    localStorage.setItem(MANUAL_KEY, "1");
-    const provider = walletWith([ADDR]);
-    setProvider(provider);
-
-    await expect(restoreWallet()).resolves.toBe(false);
-    expect(isManualDisconnected()).toBe(true);
-    expect(provider.request).not.toHaveBeenCalled();
-  });
-
-  it("tries the next installed wallet when one refuses", async () => {
-    const { restoreWallet, getState } = await freshStore();
-    const refusing = browserWallet(async () => {
-      throw new Error("refused");
-    });
-    const working = walletWith([ADDR]);
-    (window as unknown as { ethereum: unknown }).ethereum = {
-      request: refusing.request,
-      on: vi.fn(),
-      removeListener: vi.fn(),
-      providers: [refusing, working],
-    };
-
-    await expect(restoreWallet()).resolves.toBe(true);
-    expect(getState().account).toBe(ADDR);
-  });
-});
-
 describe("connecting and leaving", () => {
-  it("remembers the manual disconnect across refreshes", async () => {
-    const { connectWallet, disconnectWallet, restoreWallet, getState } = await freshStore();
-    const provider = walletWith([ADDR]);
-    setProvider(provider);
-
-    await connectWallet();
-    expect(getState().account).toBe(ADDR);
-
-    disconnectWallet();
-    expect(getState().account).toBeNull();
-    expect(localStorage.getItem(MANUAL_KEY)).toBe("1");
-    await expect(restoreWallet()).resolves.toBe(false);
-  });
-
   it("uses the first account and current chain when connecting", async () => {
     const { connectWallet, getState } = await freshStore();
     setProvider(walletWith([ADDR, "0x6666666666666666666666666666666666666666"]));

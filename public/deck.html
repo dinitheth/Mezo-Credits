@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MezoFlow — deck</title>
+    <style>
+      :root {
+        --ink: #1d2b24;
+        --muted: #5b6b62;
+        --cream: #fbf6e9;
+        --card: #fffdf7;
+        --green: #1f7a4d;
+        --green-soft: #e4f2e8;
+        --gold: #c8892f;
+        --gold-soft: #f7e9cf;
+        --line: #e4dcc8;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; background: #e9e2d0; color: var(--ink); }
+      body {
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        line-height: 1.45;
+      }
+      .deck { display: flex; flex-direction: column; align-items: center; gap: 24px; padding: 24px 0 64px; }
+      .slide {
+        width: min(1280px, 96vw);
+        aspect-ratio: 16 / 9;
+        background: var(--cream);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: clamp(24px, 4vw, 64px);
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 18px 50px rgba(40, 30, 10, 0.12);
+      }
+      .slide::after {
+        content: "";
+        position: absolute;
+        right: -160px;
+        bottom: -200px;
+        width: 520px;
+        height: 520px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(200, 137, 47, 0.16), transparent 65%);
+      }
+      .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+      .brand { display: flex; align-items: center; gap: 12px; font-weight: 800; letter-spacing: -0.02em; }
+      .brand img { width: 34px; height: 34px; object-fit: contain; }
+      .kicker { color: var(--gold); font-weight: 700; font-size: clamp(11px, 1.1vw, 14px); letter-spacing: 0.14em; text-transform: uppercase; }
+      .page { color: var(--muted); font-size: clamp(11px, 1.1vw, 14px); }
+      h1 { font-size: clamp(30px, 5.2vw, 68px); line-height: 1.04; letter-spacing: -0.035em; margin: 0; }
+      h2 { font-size: clamp(22px, 3.2vw, 42px); line-height: 1.08; letter-spacing: -0.025em; margin: 0; }
+      p { font-size: clamp(13px, 1.45vw, 19px); color: var(--muted); margin: 0; }
+      .lead { font-size: clamp(16px, 2vw, 26px); color: var(--ink); max-width: 22ch; }
+      .body { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: clamp(14px, 2vw, 26px); position: relative; z-index: 1; }
+      .split { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: clamp(20px, 4vw, 56px); align-items: center; }
+      .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(10px, 1.6vw, 20px); }
+      .grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: clamp(10px, 1.6vw, 20px); }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: clamp(12px, 1.8vw, 22px);
+      }
+      .card h3 { margin: 0 0 6px; font-size: clamp(13px, 1.5vw, 19px); }
+      .card p { font-size: clamp(11px, 1.15vw, 15px); }
+      .num {
+        display: inline-grid;
+        place-items: center;
+        width: 30px;
+        height: 30px;
+        border-radius: 999px;
+        background: var(--green-soft);
+        color: var(--green);
+        font-weight: 800;
+        font-size: 14px;
+        margin-bottom: 8px;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: var(--green-soft);
+        color: var(--green);
+        font-weight: 700;
+        font-size: clamp(11px, 1.1vw, 14px);
+      }
+      .pill.gold { background: var(--gold-soft); color: #8a5a14; }
+      .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+      .big { font-size: clamp(34px, 5vw, 64px); font-weight: 800; letter-spacing: -0.04em; line-height: 1; }
+      .stat-label { font-size: clamp(11px, 1.1vw, 14px); color: var(--muted); }
+      .gold { color: var(--gold); }
+      .green { color: var(--green); }
+      ul { margin: 0; padding-left: 1.1em; }
+      li { font-size: clamp(13px, 1.4vw, 18px); color: var(--ink); margin: 0.35em 0; }
+      li span { color: var(--muted); }
+      .flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; align-items: stretch; }
+      .step { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: clamp(8px, 1.2vw, 14px); text-align: center; }
+      .step b { display: block; font-size: clamp(11px, 1.15vw, 15px); }
+      .step span { font-size: clamp(9px, 0.95vw, 12px); color: var(--muted); }
+      .arrow { display: grid; place-items: center; color: var(--gold); font-weight: 800; }
+      .footer { position: absolute; left: clamp(24px, 4vw, 64px); right: clamp(24px, 4vw, 64px); bottom: clamp(14px, 2vw, 24px); display: flex; justify-content: space-between; color: var(--muted); font-size: clamp(9px, 0.95vw, 12px); }
+      .title-slide { justify-content: space-between; }
+      .title-slide .body { justify-content: center; }
+      .title-slide h1 { max-width: 15ch; }
+      .title-slide .lead { max-width: 30ch; }
+      .logo-big { width: clamp(46px, 6vw, 76px); height: auto; }
+      .note { font-size: clamp(10px, 1vw, 13px); color: var(--muted); }
+      .shot { background: var(--card); border: 1px dashed var(--line); border-radius: 10px; min-height: 90px; display: grid; place-items: center; color: var(--muted); font-size: 12px; text-align: center; padding: 8px; }
+      .quote { border-left: 4px solid var(--gold); padding-left: 14px; font-size: clamp(14px, 1.7vw, 22px); color: var(--ink); }
+      @media print {
+        @page { size: 1280px 720px; margin: 0; }
+        html, body { background: #fff; }
+        .deck { padding: 0; gap: 0; }
+        .slide { width: 1280px; height: 720px; border: 0; border-radius: 0; box-shadow: none; page-break-after: always; }
+        .slide:last-child { page-break-after: auto; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="deck">
+      <!-- 1 -->
+      <section class="slide title-slide">
+        <div class="top">
+          <div class="brand"><img src="/mezoflow-logo.png" alt="" class="logo-big" /> MezoFlow</div>
+          <span class="pill gold"><span class="dot"></span> Mezo testnet · prototype</span>
+        </div>
+        <div class="body">
+          <p class="kicker">Build with MUSD and MEZO</p>
+          <h1>Dollars that work, backed by Bitcoin.</h1>
+          <p class="lead">Payment links with real receipts. A lending pool priced by Mezo’s own Bitcoin feed.</p>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px">
+            <span class="pill">MUSD payments</span>
+            <span class="pill">Bitcoin-backed loans</span>
+            <span class="pill">Shared lending pool</span>
+          </div>
+        </div>
+        <div class="footer"><span>mezocredits.vercel.app</span><span>github.com/dinitheth/Mezo-Credits</span></div>
+      </section>
+
+      <!-- 2 -->
+      <section class="slide">
+        <div class="top"><div class="brand"><img src="/mezoflow-logo.png" alt="" /> MezoFlow</div><span class="page">02 · Problem</span></div>
+        <div class="body">
+          <p class="kicker">The gap</p>
+          <h2>People hold Bitcoin but bill in dollars.</h2>
+          <div class="grid3">
+            <div class="card"><h3>Bills are not links</h3><p>A wallet can send money, but it cannot reconcile who paid which bill.</p></div>
+            <div class="card"><h3>Selling Bitcoin is a tax event</h3><p>Bitcoin holders want spending money without giving up their position.</p></div>
+            <div class="card"><h3>Lending is opaque</h3><p>Savers cannot see cash, money out on loan, and fees in one plain view.</p></div>
+          </div>
+          <p class="quote">“Send me 25 dollars” should be as easy as sending a link.</p>
+        </div>
+        <div class="footer"><span>MezoFlow</span><span>Testnet prototype</span></div>
+      </section>
+
+      <!-- 3 -->
+      <section class="slide">
+        <div class="top"><div class="brand"><img src="/mezoflow-logo.png" alt="" /> MezoFlow</div><span class="page">03 · Solution</span></div>
+        <div class="body">
+          <p class="kicker">One app, three jobs</p>
+          <h2>Get paid. Borrow. Lend.</h2>
+          <div class="grid3">
+            <div class="card">
+              <span class="num">1</span>
+              <h3>Payment links</h3>
+              <p>Make a bill in seconds. Share a link or QR. The payer pays in MUSD and the bill turns paid with a public receipt.</p>
+            </div>
+            <div class="card">
+              <span class="num">2</span>
+              <h3>Bitcoin-backed loans</h3>
+              <p>Lock Bitcoin and borrow MUSD at 150, 200 or 250% safety. The price comes from Mezo, not from us.</p>
+            </div>
+            <div class="card">
+              <span class="num">3</span>
+              <h3>Lend to the pool</h3>
+              <p>Put MUSD in. Earn 1% a year when borrowers repay. Your share counts cash and money out on loan.</p>
+            </div>
+          </div>
+        </div>
+        <div class="footer"><span>No protocol words on screen</span><span>MUSD is the money</span></div>
+      </section>
+
+      <!-- 4 -->
+      <section class="slide">
+        <div class="top"><div class="brand"><img src="/mezoflow-logo.png" alt="" /> MezoFlow</div><span class="page">04 · Demo</span></div>
+        <div class="body">
+          <p class="kicker">What a person sees</p>
+          <h2>Four screens, one flow.</h2>
+          <div class="grid2" style="grid-template-columns: repeat(4, 1fr)">
+            <div class="card">
+              <h3>Bill</h3>
+              <div class="shot">
+                <div><b>New bill</b></div>
+                <div class="big" style="font-size: clamp(18px, 2vw, 26px)">25.00 MUSD</div>
+                <div>Design work</div>
+                <div class="green"><b>Make link</b></div>
+              </div>
+            </div>
+            <div class="card">
+              <h3>Pay</h3>
+              <div class="shot">
+                <div><b>Pay 25.00 MUSD</b></div>
+                <div>to Studio Nine</div>
+                <div class="green"><b>Approve and pay</b></div>
+                <div>Send directly</div>
+              </div>
+            </div>
+            <div class="card">
+              <h3>Money received</h3>
+              <div class="shot">
+                <div class="pill">Paid</div>
+                <div><b>25.00 MUSD</b></div>
+                <div>receipt 0x8f7a…</div>
+                <div class="green">Open receipt</div>
+              </div>
+            </div>
+            <div class="card">
+              <h3>Borrow</h3>
+              <div class="shot">
+                <div>Lock <b>0.0100 BTC</b></div>
+                <div>Borrow <b>250.00 MUSD</b></div>
+                <div>Safety 200%</div>
+                <div class="green"><b>Borrow</b></div>
+              </div>
+            </div>
+          </div>
+          <p class="note">Plain words on every screen. Bills are records; only payments are chain activity with a receipt.</p>
+        </div>
+        <div class="footer"><span>Live: mezocredits.vercel.app</span><span>Video shot list in SUBMISSION.md</span></div>
+      </section>
+
+      <!-- 5 -->
+      <section class="slide">
+        <div class="top"><div class="brand"><img src="/mezoflow-logo.png" alt="" /> MezoFlow</div><span class="page">05 · Mezo fit</span></div>
+        <div class="body">
+          <p class="kicker">Why Mezo</p>
+          <h2>MUSD is the unit of account and the credit asset.</h2>
+          <div class="grid3">
+            <div class="card"><h3>For payees</h3><p>Bills are priced in MUSD. The payer needs a Mezo wallet and nothing else.</p></div>
+            <div class="card"><h3>For borrowers</h3><p>Loans are paid out in MUSD. Collateral stays in Bitcoin on Mezo.</p></div>
+            <div class="card"><h3>For lenders</h3><p>Fees are paid in MUSD. Share value is measured in MUSD.</p></div>
+          </div>
+          <div class="grid3">
+            <div class="card"><span class="stat-label">Bitcoin price</span><div class="big green">Mezo</div><p>Read live from Mezo’s <b>PriceFeed</b>. No owner price.</p></div>
+            <div class="card"><span class="stat-label">Mezo loan book</span><div class="big">Live</div><p>Bitcoin locked, MUSD borrowed and system safety from <b>TroveManager</b>.</p></div>
+            <div class="card"><span class="stat-label">Your Mezo loan</span><div class="big gold">Shown</div><p>The app reads the connected wallet’s own trove, when one is open.</p></div>
+          </div>
+        </div>
+        <div class="footer"><span>Testnet PriceFeed 0x86bC…9366</span><span>Chain 31611</span></div>
+      </section>
+
+      <!-- 6 -->
+      <section class="slide">
+        <div class="top"><div class="brand"><img src="/mezoflow-logo.png" alt="" /> MezoFlow</div><span class="page">06 · How it works</span></div>
+        <div class="body">
+          <p class="kicker">Small pieces, clear jobs</p>
+          <h2>The browser asks. The wallet signs. Mezo settles.</h2>
+          <div class="flow">
+            <div class="step"><b>Browser</b><span>plain-word screens</span></div>
+            <div class="arrow">→</div>
+            <div class="step"><b>Wallet</b><span>approve and sign</span></div>
+            <div class="arrow">→</div>
+            <div class="step"><b>Mezo RPC</b><span>read and send</span></div>
+          </div>
+          <div class="flow" style="grid-template-columns: repeat(3, 1fr)">
+            <div class="step"><b>InvoiceRouter</b><span>moves MUSD, writes InvoicePaid</span></div>
+            <div class="step"><b>FlowVault</b><span>loans, shares, fees, Bitcoin</span></div>
+            <div class="step"><b>Mezo PriceFeed</b><span>Bitcoin price for every loan</span></div>
+          </div>
+          <p class="note">Bills live in the browser and in the link. The chain is the source of truth for payments, balances and loans. A direct transfer is listed with its receipt but does not mark a bill paid.</p>
+        </div>
+        <div class="footer"><span>No backend account</span><span>No custody of keys or funds</span></div>
+      </section>
+
+      <!-- 7 -->
+      <section class="slide">
+        <div class="top"><div class="brand"><img src="/mezoflow-logo.png" alt="" /> MezoFlow</div><span class="page">07 · Users and business</span></div>
+        <div class="body">
+          <p class="kicker">Who pays for it</p>
+          <h2>Start with people already paid in MUSD.</h2>
+          <div class="split">
+            <div>
+              <ul>
+                <li><b>First users</b> <span>freelancers and small shops paid in MUSD; Bitcoin holders who want dollars without selling.</span></li>
+                <li><b>Wedge</b> <span>a payment link is easier to try than a new account.</span></li>
+                <li><b>Revenue path</b> <span>a small share of the 1% yearly fee, or a flat fee per paid bill. Not switched on today.</span></li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3>Honest risks</h3>
+              <p>Pool liquidity, smart-contract risk, and reliance on Mezo’s oracle. Borrowing and closing pause while the price is stale; lending and repayment keep working. Contracts are tested but not audited.</p>
+            </div>
+          </div>
+        </div>
+        <div class="footer"><span>Testnet build · no public users yet</span><span>No invented users</span></div>
+      </section>
+
+      <!-- 8 -->
+      <section class="slide">
+        <div class="top"><div class="brand"><img src="/mezoflow-logo.png" alt="" /> MezoFlow</div><span class="page">08 · Roadmap</span></div>
+        <div class="body">
+          <p class="kicker">What happens next</p>
+          <h2>Deploy the replacements, then earn real use.</h2>
+          <div class="grid3">
+            <div class="card"><span class="num">1</span><h3>Now</h3><p>Deploy the corrected router and the oracle-priced vault. Verify one payment and one loan end to end.</p></div>
+            <div class="card"><span class="num">2</span><h3>4–6 weeks</h3><p>Indexer and notifications, installable shop app, batch payouts.</p></div>
+            <div class="card"><span class="num">3</span><h3>3 months</h3><p>Pilot with 5–10 merchants, independent review, switch on a small fee.</p></div>
+          </div>
+          <div class="grid2">
+            <div class="card"><h3>Built with</h3><p>TanStack Start, React 19, TypeScript, Tailwind, RainbowKit, wagmi, viem, Solidity 0.8.20+, Vitest, solc + EVM contract tests.</p></div>
+            <div class="card"><h3>Proof</h3><p>93 app tests · 10 contract tests · typecheck and production build pass · live on Mezo testnet.</p></div>
+          </div>
+        </div>
+        <div class="footer"><span>Repo: github.com/dinitheth/Mezo-Credits</span><span>Deck: /deck.html</span></div>
+      </section>
+    </div>
+  </body>
+</html>

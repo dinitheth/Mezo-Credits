@@ -74,39 +74,6 @@ export function mezoTokenAddressFor(chainId: number | null): string | null {
   return null;
 }
 
-/** How long the pool's posted price may be used before new loans pause. */
-export const PRICE_STALE_SECONDS = 15 * 60;
-
-export function priceAgeSeconds(
-  priceTime: bigint | number | null | undefined,
-  nowMs = Date.now(),
-): number {
-  const t = typeof priceTime === "bigint" ? Number(priceTime) : (priceTime ?? 0);
-  if (!t) return Number.POSITIVE_INFINITY;
-  return Math.max(0, Math.floor(nowMs / 1000) - t);
-}
-
-export function priceAgeLabel(
-  priceTime: bigint | number | null | undefined,
-  nowMs = Date.now(),
-): string {
-  const s = priceAgeSeconds(priceTime, nowMs);
-  if (!Number.isFinite(s)) return "never";
-  if (s < 60) return "just now";
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m} min ago`;
-  const h = Math.round(m / 60);
-  if (h < 48) return `${h} h ago`;
-  return `${Math.round(h / 24)} days ago`;
-}
-
-export function priceIsStale(
-  priceTime: bigint | number | null | undefined,
-  nowMs = Date.now(),
-): boolean {
-  return priceAgeSeconds(priceTime, nowMs) > PRICE_STALE_SECONDS;
-}
-
 // ---------------------------------------------------------------------------
 // Minimal ERC-20 encoding (no viem/ethers dependency)
 // ---------------------------------------------------------------------------
@@ -200,6 +167,13 @@ async function ethCall(to: string, data: string): Promise<string> {
   return (await rpcCall("eth_call", [{ to, data }, "latest"])) as string;
 }
 
+/** Read from a known network without depending on the wallet's current chain. */
+async function ethCallTo(chainId: number, to: string, data: string): Promise<string> {
+  const url = RPC_BY_CHAIN[chainId];
+  if (!url) throw new Error("This network is not supported.");
+  return (await rpcCallTo(url, "eth_call", [{ to, data }, "latest"])) as string;
+}
+
 /** Real read: ERC-20 MUSD balance for `account` on the wallet's chain. */
 export async function getMusdBalance(account: string, musd: string): Promise<number> {
   const data = `0x${SEL.balanceOf}${addrToWord(account)}`;
@@ -246,6 +220,196 @@ export async function getBlockNumber(): Promise<bigint> {
     ? ((await e.request({ method: "eth_blockNumber" })) as string)
     : ((await rpcCall("eth_blockNumber", [])) as string);
   return BigInt(hex);
+}
+
+// ---------------------------------------------------------------------------
+// Mezo protocol reads: the official PriceFeed and TroveManager
+// ---------------------------------------------------------------------------
+
+export const MEZO_PROTOCOL = {
+  /** Mezo test network (31611). */
+  31611: {
+    priceFeed: "0x86bCF0841622a5dAC14A313a15f96A95421b9366",
+    borrowerOperations: "0xCdF7028ceAB81fA0C6971208e83fa7872994beE5",
+    troveManager: "0xE47c80e8c23f6B4A1aE41c34837a0599D5D16bb0",
+  },
+  /** Mezo mainnet (31612). */
+  31612: {
+    priceFeed: "0xc5aC5A8892230E0A3e1c473881A2de7353fFcA88",
+    borrowerOperations: "0x44b1bac67dDA612a41a58AAf779143B181dEe031",
+    troveManager: "0x94AfB503dBca74aC3E4929BACEeDfCe19B93c193",
+  },
+} as const;
+
+export type MezoProtocol = (typeof MEZO_PROTOCOL)[keyof typeof MEZO_PROTOCOL];
+
+export function mezoProtocolFor(chainId: number | null): MezoProtocol | null {
+  if (chainId === 31611 || chainId === 31612) return MEZO_PROTOCOL[chainId];
+  return null;
+}
+
+const MEZO_ABI = [
+  {
+    name: "fetchPrice",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    name: "getTroveStatus",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "_borrower", type: "address" }],
+    outputs: [{ type: "uint8" }],
+  },
+  {
+    name: "getEntireDebtAndColl",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "_borrower", type: "address" }],
+    outputs: [
+      { name: "coll", type: "uint256" },
+      { name: "principal", type: "uint256" },
+      { name: "interest", type: "uint256" },
+      { name: "pendingCollateral", type: "uint256" },
+      { name: "pendingPrincipal", type: "uint256" },
+      { name: "pendingInterest", type: "uint256" },
+    ],
+  },
+  {
+    name: "getCurrentICR",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "_borrower", type: "address" },
+      { name: "_price", type: "uint256" },
+    ],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    name: "getTroveInterestRate",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "_borrower", type: "address" }],
+    outputs: [{ type: "uint16" }],
+  },
+  {
+    name: "getEntireSystemColl",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    name: "getEntireSystemDebt",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    name: "getTCR",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "_price", type: "uint256" }],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    name: "getTroveOwnersCount",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+] as const;
+
+async function mezoCall<T>(
+  chainId: number,
+  contract: string,
+  functionName: string,
+  args: unknown[] = [],
+): Promise<T> {
+  const { encodeFunctionData, decodeFunctionResult } = await import("viem");
+  const data = encodeFunctionData({
+    abi: MEZO_ABI,
+    functionName: functionName as "fetchPrice",
+    args: args as never,
+  });
+  const raw = await ethCallTo(chainId, contract, data);
+  return decodeFunctionResult({
+    abi: MEZO_ABI,
+    functionName: functionName as "fetchPrice",
+    data: raw as `0x${string}`,
+  }) as T;
+}
+
+export type MezoSystem = {
+  price: bigint;
+  totalCollateral: bigint;
+  totalDebt: bigint;
+  tcr: bigint;
+  troveCount: number;
+};
+
+/** Real totals from Mezo's TroveManager and PriceFeed. Null when unavailable. */
+export async function getMezoSystem(chainId: number): Promise<MezoSystem | null> {
+  const p = mezoProtocolFor(chainId);
+  if (!p) return null;
+  try {
+    const price = await mezoCall<bigint>(chainId, p.priceFeed, "fetchPrice");
+    const [totalCollateral, totalDebt, tcr, count] = await Promise.all([
+      mezoCall<bigint>(chainId, p.troveManager, "getEntireSystemColl"),
+      mezoCall<bigint>(chainId, p.troveManager, "getEntireSystemDebt"),
+      mezoCall<bigint>(chainId, p.troveManager, "getTCR", [price]),
+      mezoCall<bigint>(chainId, p.troveManager, "getTroveOwnersCount"),
+    ]);
+    return { price, totalCollateral, totalDebt, tcr, troveCount: Number(count) };
+  } catch {
+    return null;
+  }
+}
+
+export type MezoTrove = {
+  collateral: bigint;
+  principal: bigint;
+  interest: bigint;
+  debt: bigint;
+  /** 1e18 = 100%. */
+  ratio: bigint;
+  /** Mezo's yearly rate in basis points. */
+  rate: number;
+};
+
+/** A wallet's real Mezo trove. Null when it has no open trove. */
+export async function getMezoTrove(chainId: number, who: string): Promise<MezoTrove | null> {
+  const p = mezoProtocolFor(chainId);
+  if (!p) return null;
+  try {
+    const status = await mezoCall<number>(chainId, p.troveManager, "getTroveStatus", [who]);
+    if (Number(status) !== 1) return null;
+    const price = await mezoCall<bigint>(chainId, p.priceFeed, "fetchPrice");
+    const [amounts, ratio, rate] = await Promise.all([
+      mezoCall<[bigint, bigint, bigint, bigint, bigint, bigint]>(
+        chainId,
+        p.troveManager,
+        "getEntireDebtAndColl",
+        [who],
+      ),
+      mezoCall<bigint>(chainId, p.troveManager, "getCurrentICR", [who, price]),
+      mezoCall<number>(chainId, p.troveManager, "getTroveInterestRate", [who]),
+    ]);
+    return {
+      collateral: amounts[0],
+      principal: amounts[1],
+      interest: amounts[2],
+      debt: amounts[1] + amounts[2],
+      ratio,
+      rate: Number(rate),
+    };
+  } catch {
+    return null;
+  }
 }
 
 export type TxReceipt = { status: string; blockNumber: string } | null;
@@ -594,9 +758,18 @@ export async function payViaRouter(
 // FlowVault — our own lending pool (`contracts/FlowVault.sol`)
 // ---------------------------------------------------------------------------
 
+/**
+ * The first testnet pool used an owner-set price and an older ABI. Reading it
+ * with this app's calls would show broken numbers, so treat it as "no pool".
+ */
+const LEGACY_VAULT_TESTNET = "0x241af24502bD8DC163c1163Cdb35E9845510544f";
+
 export function vaultAddressFor(chainId: number | null): string | null {
-  if (chainId === 31611)
-    return env("VITE_VAULT_ADDRESS_TESTNET") ?? "0x241af24502bD8DC163c1163Cdb35E9845510544f";
+  if (chainId === 31611) {
+    const configured = env("VITE_VAULT_ADDRESS_TESTNET");
+    if (!configured || configured.toLowerCase() === LEGACY_VAULT_TESTNET.toLowerCase()) return null;
+    return configured;
+  }
   if (chainId === 31612) return env("VITE_VAULT_ADDRESS_MAINNET");
   return null;
 }
@@ -609,6 +782,7 @@ const VAULT_ABI = [
     inputs: [{ name: "", type: "address" }],
     outputs: [
       { name: "backing", type: "uint256" },
+      { name: "principal", type: "uint256" },
       { name: "owed", type: "uint256" },
       { name: "tier", type: "uint256" },
       { name: "updated", type: "uint256" },
@@ -643,28 +817,21 @@ const VAULT_ABI = [
     outputs: [{ type: "uint256" }],
   },
   {
-    name: "owner",
-    type: "function",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ type: "address" }],
-  },
-  {
-    name: "btcPrice",
+    name: "cash",
     type: "function",
     stateMutability: "view",
     inputs: [],
     outputs: [{ type: "uint256" }],
   },
   {
-    name: "priceTime",
+    name: "totalAssets",
     type: "function",
     stateMutability: "view",
     inputs: [],
     outputs: [{ type: "uint256" }],
   },
   {
-    name: "poolBalance",
+    name: "totalLent",
     type: "function",
     stateMutability: "view",
     inputs: [],
@@ -676,6 +843,20 @@ const VAULT_ABI = [
     stateMutability: "view",
     inputs: [],
     outputs: [{ type: "uint256" }],
+  },
+  {
+    name: "btcPrice",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    name: "priceFeed",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address" }],
   },
   {
     name: "lend",
@@ -729,13 +910,6 @@ const VAULT_ABI = [
     inputs: [{ name: "who", type: "address" }],
     outputs: [],
   },
-  {
-    name: "setPrice",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "price", type: "uint256" }],
-    outputs: [],
-  },
 ] as const;
 
 async function vaultCall<T>(vault: string, functionName: string, args: unknown[] = []): Promise<T> {
@@ -757,14 +931,7 @@ async function vaultSend(
   vault: string,
   from: string,
   functionName:
-    | "lend"
-    | "unlend"
-    | "openLoan"
-    | "addBacking"
-    | "repay"
-    | "takeBacking"
-    | "closeLoan"
-    | "setPrice",
+    "lend" | "unlend" | "openLoan" | "addBacking" | "repay" | "takeBacking" | "closeLoan",
   args: unknown[],
   value?: bigint,
 ): Promise<string> {
@@ -777,58 +944,75 @@ async function vaultSend(
 
 export type VaultLoan = {
   backing: bigint;
+  principal: bigint;
   owed: bigint;
   liveOwed: bigint;
   ratio: bigint;
   tier: number;
 };
 
-/** Live loan + pool position for one wallet. Amounts are smallest units. */
-export async function getVaultPosition(
-  vault: string,
-  who: string,
-): Promise<{
+export type VaultPosition = {
   loan: VaultLoan;
+  /** Value of the wallet's shares, including money out on loan. */
   poolValue: bigint;
+  /** Cash those shares could take right now, if enough cash is free. */
+  cashValue: bigint;
   shares: bigint;
   totalShares: bigint;
-  poolBalance: bigint;
+  cash: bigint;
+  totalAssets: bigint;
+  totalLent: bigint;
   price: bigint;
-  priceTime: bigint;
-  owner: string;
-}> {
+  priceFeed: string;
+};
+
+/** Live loan + pool position for one wallet. Amounts are smallest units. */
+export async function getVaultPosition(vault: string, who: string): Promise<VaultPosition> {
   const [
     loan,
     liveOwed,
     ratio,
     shares,
     poolValue,
-    poolBalance,
+    cash,
+    totalAssets,
+    totalLent,
     totalShares,
     price,
-    priceTime,
-    owner,
+    priceFeed,
   ] = await Promise.all([
-    vaultCall<[bigint, bigint, bigint, bigint]>(vault, "loans", [who]),
+    vaultCall<[bigint, bigint, bigint, bigint, bigint]>(vault, "loans", [who]),
     vaultCall<bigint>(vault, "owedOf", [who]),
-    vaultCall<bigint>(vault, "backingRatio", [who]),
+    vaultCall<bigint>(vault, "backingRatio", [who]).catch(() => 0n),
     vaultCall<bigint>(vault, "shares", [who]),
     vaultCall<bigint>(vault, "poolOf", [who]),
-    vaultCall<bigint>(vault, "poolBalance", []),
+    vaultCall<bigint>(vault, "cash", []),
+    vaultCall<bigint>(vault, "totalAssets", []),
+    vaultCall<bigint>(vault, "totalLent", []),
     vaultCall<bigint>(vault, "totalShares", []),
-    vaultCall<bigint>(vault, "btcPrice", []),
-    vaultCall<bigint>(vault, "priceTime", []),
-    vaultCall<string>(vault, "owner", []),
+    vaultCall<bigint>(vault, "btcPrice", []).catch(() => 0n),
+    vaultCall<string>(vault, "priceFeed", []),
   ]);
+
+  const proRataCash = totalShares === 0n ? 0n : (shares * cash) / totalShares;
   return {
-    loan: { backing: loan[0], owed: loan[1], liveOwed, ratio, tier: Number(loan[2]) },
+    loan: {
+      backing: loan[0],
+      principal: loan[1],
+      owed: loan[2],
+      liveOwed,
+      ratio,
+      tier: Number(loan[3]),
+    },
     poolValue,
+    cashValue: proRataCash < poolValue ? proRataCash : poolValue,
     shares,
     totalShares,
-    poolBalance,
+    cash,
+    totalAssets,
+    totalLent,
     price,
-    priceTime,
-    owner,
+    priceFeed,
   };
 }
 
@@ -851,24 +1035,25 @@ export const vaultTakeBacking = (vault: string, from: string, btc: number | stri
   vaultSend(vault, from, "takeBacking", [parseMUSD(btc)]);
 export const vaultCloseLoan = (vault: string, from: string, who: string) =>
   vaultSend(vault, from, "closeLoan", [who]);
-export const vaultSetPrice = (vault: string, from: string, usdPrice: number) =>
-  vaultSend(vault, from, "setPrice", [parseMUSD(usdPrice)]);
-export const vaultOwner = (vault: string) => vaultCall<string>(vault, "owner", []);
 
 /** Pool-wide numbers anyone can read — no wallet needed. */
-export async function getVaultGlobals(vault: string): Promise<{
-  poolBalance: bigint;
+export type VaultGlobals = {
+  cash: bigint;
+  totalAssets: bigint;
+  totalLent: bigint;
   totalShares: bigint;
   price: bigint;
-  priceTime: bigint;
-  owner: string;
-}> {
-  const [poolBalance, totalShares, price, priceTime, owner] = await Promise.all([
-    vaultCall<bigint>(vault, "poolBalance", []),
+  priceFeed: string;
+};
+
+export async function getVaultGlobals(vault: string): Promise<VaultGlobals> {
+  const [cash, totalAssets, totalLent, totalShares, price, priceFeed] = await Promise.all([
+    vaultCall<bigint>(vault, "cash", []),
+    vaultCall<bigint>(vault, "totalAssets", []),
+    vaultCall<bigint>(vault, "totalLent", []),
     vaultCall<bigint>(vault, "totalShares", []),
-    vaultCall<bigint>(vault, "btcPrice", []),
-    vaultCall<bigint>(vault, "priceTime", []),
-    vaultCall<string>(vault, "owner", []),
+    vaultCall<bigint>(vault, "btcPrice", []).catch(() => 0n),
+    vaultCall<string>(vault, "priceFeed", []),
   ]);
-  return { poolBalance, totalShares, price, priceTime, owner };
+  return { cash, totalAssets, totalLent, totalShares, price, priceFeed };
 }

@@ -1,24 +1,23 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Shell } from "@/components/Shell";
+import { MezoProtocolCard } from "@/components/MezoProtocolCard";
 import { OnchainPanel } from "@/components/OnchainPanel";
 import { Btn, Card, Field, Stat, cleanNum, inputCls } from "@/components/ui-bits";
-import { logActivity, num, setActivityStatus, usePriceFeed, useStore } from "@/lib/mezo";
+import { logActivity, num, setActivityStatus, useStore } from "@/lib/mezo";
 import { friendly } from "@/lib/errors";
 import {
   approveRouter,
   didSucceed,
+  formatMUSD,
   getBtcBalance,
   getMusdBalance,
   getVaultPosition,
   musdAddressFor,
-  priceAgeLabel,
-  priceIsStale,
   vaultAddBacking,
   vaultAddressFor,
   vaultCloseLoan,
   vaultRepay,
-  vaultSetPrice,
   vaultTakeBacking,
   waitForReceipt,
   type VaultLoan,
@@ -46,6 +45,8 @@ function useLoan() {
   const onMezo = !s.chainId || s.chainId === 31611 || s.chainId === 31612;
   const [loan, setLoan] = useState<VaultLoan | null>(null);
   const [poolValue, setPoolValue] = useState(0);
+  const [poolCash, setPoolCash] = useState(0);
+  const [poolPrice, setPoolPrice] = useState(0);
   const [walletBtc, setWalletBtc] = useState<number | null>(null);
   const [walletMusd, setWalletMusd] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -59,6 +60,8 @@ function useLoan() {
       const pos = await getVaultPosition(vault, s.account);
       setLoan(pos.loan.liveOwed > 0n || pos.loan.backing > 0n ? pos.loan : null);
       setPoolValue(Number(pos.poolValue) / 1e18);
+      setPoolCash(Number(pos.cash) / 1e18);
+      setPoolPrice(Number(pos.price) / 1e18);
       const btc = await getBtcBalance(s.account).catch(() => null);
       setWalletBtc(btc);
       const musd = musdAddressFor(s.chainId);
@@ -81,6 +84,8 @@ function useLoan() {
     onMezo,
     loan,
     poolValue,
+    poolCash,
+    poolPrice,
     walletBtc,
     walletMusd,
     loading,
@@ -90,8 +95,18 @@ function useLoan() {
 
 function Dashboard() {
   const s = useStore();
-  usePriceFeed(true);
-  const { vault, onMezo, loan, poolValue, walletBtc, walletMusd, loading, refresh } = useLoan();
+  const {
+    vault,
+    onMezo,
+    loan,
+    poolValue,
+    poolCash,
+    poolPrice,
+    walletBtc,
+    walletMusd,
+    loading,
+    refresh,
+  } = useLoan();
   const [add, setAdd] = useState("");
   const [pay, setPay] = useState("");
   const [take, setTake] = useState("");
@@ -185,27 +200,18 @@ function Dashboard() {
       return;
     }
     void run("Closed that loan", async (account, v, musd) => {
-      let pos = await getVaultPosition(v, close);
+      const pos = await getVaultPosition(v, close);
       if (pos.loan.liveOwed <= 0n) throw new Error("That wallet has no loan.");
+      if (pos.price === 0n)
+        throw new Error(
+          "Mezo's Bitcoin price is not fresh right now. Please try again in a minute.",
+        );
       if (Number(pos.loan.ratio) >= 110)
         throw new Error("That loan is still safe. Only loans under 110% can close.");
-      if (priceIsStale(pos.priceTime)) {
-        if (pos.owner.toLowerCase() !== account.toLowerCase())
-          throw new Error(
-            `The pool price is ${priceAgeLabel(pos.priceTime)} old. Closing waits until the pool owner refreshes it.`,
-          );
-        if (!s.priceLive || s.btcPrice <= 0)
-          throw new Error("Waiting on the live price. Try again.");
-        const fix = await vaultSetPrice(v, account, s.btcPrice);
-        await waitForReceipt(fix);
-        pos = await getVaultPosition(v, close);
-        if (Number(pos.loan.ratio) >= 110)
-          throw new Error("That loan is still safe. Only loans under 110% can close.");
-      }
       const owed = Number(pos.loan.liveOwed) / 1e18;
       const held = await getMusdBalance(account, musd).catch(() => 0);
       if (held < owed) throw new Error(`You hold ${held} MUSD — closing needs ${num(owed, 2)}.`);
-      await approveFirst(musd, v, account, owed.toFixed(2));
+      await approveFirst(musd, v, account, formatMUSD(pos.loan.liveOwed, 18));
       const hash = await vaultCloseLoan(v, account, close);
       logActivity("repay", owed, "MUSD", "Closed someone's unsafe loan, kept their Bitcoin", hash);
       return hash;
@@ -213,10 +219,10 @@ function Dashboard() {
     setClose("");
   };
   const ratio = loan ? Number(loan.ratio) : 0;
-  const danger = loan !== null && ratio < 150;
+  const danger = loan !== null && ratio > 0 && ratio < 150;
   const takeMax =
-    loan && s.btcPrice > 0
-      ? Math.max(0, fmt(loan.backing) - (fmt(loan.liveOwed) * 1.5) / s.btcPrice)
+    loan && poolPrice > 0
+      ? Math.max(0, fmt(loan.backing) - (fmt(loan.liveOwed) * 1.5) / poolPrice)
       : 0;
 
   return (
@@ -284,16 +290,20 @@ function Dashboard() {
               <Stat label="You owe" value={`${num(fmt(loan.liveOwed), 2)} MUSD`} />
               <Stat
                 label="Safety"
-                value={ratio > 1000000 ? "—" : `${ratio.toFixed(0)}%`}
+                value={ratio <= 0 || ratio > 1000000 ? "—" : `${ratio.toFixed(0)}%`}
                 tone={danger ? "red" : "green"}
               />
               <Stat
-                label="Your cash share"
+                label="Your pool share"
                 value={`${num(poolValue, 2)} MUSD`}
                 tone="green"
-                tip="Cash your shares can take now. Money out on loan, and fees not yet repaid, are not included."
+                tip="Cash in the pool plus money out on loan. Fees count when borrowers repay."
               />
             </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Cash free in the pool right now: {num(poolCash, 2)} MUSD. Money out on loan comes back
+              as borrowers repay.
+            </p>
             {danger && (
               <div
                 role="alert"
@@ -404,6 +414,7 @@ function Dashboard() {
         </div>
       )}
 
+      <MezoProtocolCard />
       <div className="mt-4">
         <OnchainPanel />
       </div>

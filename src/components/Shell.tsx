@@ -1,14 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Moon, Sun } from "lucide-react";
-import {
-  MEZO,
-  disconnectWallet,
-  hydrateStore,
-  short,
-  switchToMezo,
-  useStore,
-} from "@/lib/mezo";
+import { MEZO, disconnectWallet, hydrateStore, short, switchToMezo, useStore } from "@/lib/mezo";
 import mezoLogo from "@/assets/mezoflow-logo.png";
 import { Btn } from "./ui-bits";
 import { RainbowConnectArea } from "./RainbowWallet";

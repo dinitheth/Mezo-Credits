@@ -113,7 +113,7 @@ describe("borrow planner", () => {
     render(<CreditForm poolSize={1_000} />);
     fireEvent.change(screen.getByPlaceholderText("e.g. 0.05"), { target: { value: "1" } });
 
-    expect(screen.getByText(/pool holds 1,000 MUSD/)).toBeInTheDocument();
+    expect(screen.getByText(/pool has 1,000 MUSD free to borrow/)).toBeInTheDocument();
     expect(screen.getByPlaceholderText("e.g. 0.05")).toHaveValue("0.029411");
   });
 });

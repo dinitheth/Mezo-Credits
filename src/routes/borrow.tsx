@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Shell } from "@/components/Shell";
 import { BtcWord } from "@/components/BitcoinMark";
 import { CreditForm } from "@/components/CreditForm";
+import { MezoProtocolCard } from "@/components/MezoProtocolCard";
 import { OnchainPanel } from "@/components/OnchainPanel";
 import { Btn, Card } from "@/components/ui-bits";
 import { logActivity, num, setActivityStatus, useStore } from "@/lib/mezo";
@@ -15,12 +16,8 @@ import {
   getVaultPosition,
   musdAddressFor,
   parseMUSD,
-  priceAgeLabel,
-  priceIsStale,
   vaultAddressFor,
   vaultOpenLoan,
-  vaultSetPrice,
-  waitForReceipt,
 } from "@/lib/onchain";
 
 export const Route = createFileRoute("/borrow")({
@@ -50,51 +47,42 @@ function Borrow() {
   const [err, setErr] = useState<string | null>(null);
   const vault = vaultAddressFor(s.chainId ?? 31611);
   const onMezo = !s.chainId || s.chainId === 31611 || s.chainId === 31612;
-  const [poolSize, setPoolSize] = useState<number | null>(null);
+  const [poolCash, setPoolCash] = useState<number | null>(null);
   const [walletMusd, setWalletMusd] = useState<number | null>(null);
   const [walletBtcWei, setWalletBtcWei] = useState<bigint | null>(null);
   const [walletBtcError, setWalletBtcError] = useState(false);
   const [poolPrice, setPoolPrice] = useState<bigint>(0n);
-  const [priceTime, setPriceTime] = useState<bigint>(0n);
-  const [vaultOwner, setVaultOwner] = useState<string | null>(null);
-  const [priceBusy, setPriceBusy] = useState(false);
-  const [, setTick] = useState(0);
-  const autoPrice = useRef<string | null>(null);
 
   const refreshPool = useCallback(async () => {
     if (!vault) return;
     try {
       const g = await getVaultGlobals(vault);
-      setPoolSize(Number(g.poolBalance) / 1e18);
+      setPoolCash(Number(g.cash) / 1e18);
       setPoolPrice(g.price);
-      setPriceTime(g.priceTime);
-      setVaultOwner(g.owner);
     } catch {
       // Leave the last numbers on screen.
     }
   }, [vault]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setTick((n) => n + 1), 30_000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
     let live = true;
     if (!vault) return;
-    getVaultGlobals(vault)
+    void getVaultGlobals(vault)
       .then((g) => {
         if (!live) return;
-        setPoolSize(Number(g.poolBalance) / 1e18);
+        setPoolCash(Number(g.cash) / 1e18);
         setPoolPrice(g.price);
-        setPriceTime(g.priceTime);
-        setVaultOwner(g.owner);
       })
       .catch(() => {});
     return () => {
       live = false;
     };
   }, [vault]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => void refreshPool(), 30_000);
+    return () => window.clearInterval(timer);
+  }, [refreshPool]);
 
   useEffect(() => {
     let live = true;
@@ -158,33 +146,32 @@ function Borrow() {
       const btcBalance = await getBtcBalanceWei(s.account);
       setWalletBtcWei(btcBalance);
       setWalletBtcError(false);
-      if (parseMUSD(info.btc.toString()) > btcBalance)
+      if (parseMUSD(info.btc.toFixed(6)) > btcBalance)
         throw new Error(
           `Insufficient wallet balance. You have ${num(Number(btcBalance) / 1e18, 6)} BTC.`,
         );
-      if (!s.priceLive || s.btcPrice <= 0) throw new Error("Waiting on the live price. Try again.");
-      let pos = await getVaultPosition(vault, s.account);
-      const want = parseMUSD(info.amount.toFixed(2));
-      if (want > pos.poolBalance)
+
+      const pos = await getVaultPosition(vault, s.account);
+      if (pos.price === 0n)
         throw new Error(
-          pos.poolBalance === 0n
-            ? "The pool is empty, so there is nothing to borrow yet. Seed it once: borrow test MUSD on Mezo's test site, put it in on the Grow page, then borrow here."
-            : `The pool holds ${Number(pos.poolBalance) / 1e18} MUSD — less than this loan. Try a smaller amount.`,
+          "Mezo's Bitcoin price is not fresh right now. Please try again in a minute.",
         );
-      if (pos.price === 0n || priceIsStale(pos.priceTime)) {
-        if (pos.owner.toLowerCase() !== s.account.toLowerCase()) {
-          const age = pos.price === 0n ? "not set" : `${priceAgeLabel(pos.priceTime)} old`;
-          throw new Error(
-            `The pool price is ${age}, so new loans wait for a refresh. The pool owner can update it.`,
-          );
-        }
-        const fix = await vaultSetPrice(vault, s.account, s.btcPrice);
-        await waitForReceipt(fix);
-        pos = await getVaultPosition(vault, s.account);
-        if (pos.price === 0n || priceIsStale(pos.priceTime))
-          throw new Error("The pool price did not update. Try again in a minute.");
-        void refreshPool();
-      }
+
+      const want = parseMUSD(info.amount.toFixed(2));
+      if (want > pos.cash)
+        throw new Error(
+          pos.cash === 0n
+            ? "The pool has no cash free to borrow right now. Lenders can add more on the Grow page."
+            : `The pool has ${num(Number(pos.cash) / 1e18, 2)} MUSD free to borrow — less than this loan. Try a smaller amount.`,
+        );
+
+      const backing = parseMUSD(info.btc.toFixed(6));
+      const value = (backing * pos.price) / 10n ** 18n;
+      if ((value * 100n) / want < BigInt(info.tier))
+        throw new Error(
+          "That is too close to the line. Lock a little more Bitcoin or borrow less.",
+        );
+
       const hash = await vaultOpenLoan(
         vault,
         s.account,
@@ -214,32 +201,6 @@ function Borrow() {
     }
   };
 
-  const isOwner = Boolean(
-    s.account && vaultOwner && s.account.toLowerCase() === vaultOwner.toLowerCase(),
-  );
-  const stale = poolSize !== null && (poolPrice === 0n || priceIsStale(priceTime));
-
-  useEffect(() => {
-    const account = s.account;
-    if (!vault || !account || !isOwner || !stale || !onMezo) return;
-    if (!s.priceLive || s.btcPrice <= 0) return;
-    const key = `${vault}:${priceTime.toString()}`;
-    if (autoPrice.current === key) return;
-    autoPrice.current = key;
-    setPriceBusy(true);
-    void (async () => {
-      try {
-        const hash = await vaultSetPrice(vault, account, s.btcPrice);
-        await waitForReceipt(hash);
-        await refreshPool();
-      } catch {
-        // The wallet may have closed the popup. Borrowing asks again.
-      } finally {
-        setPriceBusy(false);
-      }
-    })();
-  }, [vault, s.account, isOwner, stale, onMezo, s.priceLive, s.btcPrice, priceTime, refreshPool]);
-
   return (
     <Shell>
       <div className="grid gap-6 lg:grid-cols-5">
@@ -264,6 +225,10 @@ function Borrow() {
               and MUSD lands in your wallet.
             </li>
           </ol>
+          <p className="mt-4 text-xs text-muted-foreground">
+            The Bitcoin price comes from Mezo&apos;s own price feed. We cannot set it ourselves. If
+            Mezo&apos;s price is not fresh, borrowing pauses until it is.
+          </p>
           <div className="mt-6 flex flex-wrap gap-2">
             <Link to="/dashboard">
               <Btn variant="ghost">See your loan</Btn>
@@ -283,15 +248,19 @@ function Borrow() {
         <Card className="lg:col-span-3">
           {!vault ? (
             <div className="space-y-3 text-center">
-              <h2 className="text-xl font-semibold">The pool is not open on this network</h2>
+              <h2 className="text-xl font-semibold">
+                {onMezo ? "The pool is getting an upgrade" : "The pool is not open on this network"}
+              </h2>
               <p className="text-sm text-muted-foreground">
-                Switch to Mezo to borrow from the pool. The planner below still runs on live prices.
+                {onMezo
+                  ? "Borrowing starts again when the new pool is live. The planner below still runs on Mezo's price."
+                  : "Switch to Mezo to borrow from the pool. The planner below still runs on live prices."}
               </p>
             </div>
           ) : (
-            priceBusy && (
+            poolPrice === 0n && (
               <p className="mb-2 text-center text-xs text-muted-foreground" aria-live="polite">
-                Updating the pool price…
+                Mezo&apos;s price is not fresh right now. Borrowing waits until it is.
               </p>
             )
           )}
@@ -301,10 +270,12 @@ function Borrow() {
             walletMusd={walletMusd}
             walletBtcWei={walletBtcWei}
             walletBtcError={walletBtcError}
-            poolSize={poolSize}
+            poolSize={poolCash}
+            priceOverride={poolPrice > 0n ? Number(poolPrice) / 1e18 : undefined}
           />
         </Card>
       </div>
+      <MezoProtocolCard />
       <div className="mt-4">
         <OnchainPanel />
       </div>

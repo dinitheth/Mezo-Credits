@@ -1,12 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import {
-  clearManualDisconnect,
-  disconnectWallet,
-  getState,
-  isManualDisconnected,
-  restoreWallet,
-  setState,
-} from "@/lib/mezo";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { disconnectWallet, getState, setState } from "@/lib/mezo";
 import { setWalletAdapter } from "@/lib/wallet-adapter";
 
 const ADDR = "0x5555555555555555555555555555555555555555";
@@ -14,12 +7,11 @@ const ADDR = "0x5555555555555555555555555555555555555555";
 describe("disconnecting a wallet", () => {
   beforeEach(() => {
     localStorage.clear();
-    clearManualDisconnect();
     setWalletAdapter(null);
     setState({ account: null, chainId: null });
   });
 
-  it("clears the wallet and remembers the choice", () => {
+  it("clears the wallet", () => {
     setState({ account: ADDR, chainId: 31611 });
     expect(getState().account).toBe(ADDR);
 
@@ -27,15 +19,19 @@ describe("disconnecting a wallet", () => {
 
     expect(getState().account).toBeNull();
     expect(getState().chainId).toBeNull();
-    expect(isManualDisconnected()).toBe(true);
   });
 
-  it("keeps quiet reconnect off until the person connects again", async () => {
-    disconnectWallet();
-    expect(await restoreWallet()).toBe(false);
+  it("asks the wallet kit to log out", () => {
+    const logout = vi.fn(async () => {});
+    setWalletAdapter({
+      sendTransaction: async () => "0x",
+      signTypedData: async () => "0x",
+      logout,
+    });
 
-    clearManualDisconnect();
-    expect(isManualDisconnected()).toBe(false);
+    disconnectWallet();
+
+    expect(logout).toHaveBeenCalledTimes(1);
   });
 
   it("survives a wallet kit that refuses to log out", () => {
@@ -46,7 +42,7 @@ describe("disconnecting a wallet", () => {
     });
 
     expect(() => disconnectWallet()).not.toThrow();
-    expect(isManualDisconnected()).toBe(true);
+    expect(getState().account).toBeNull();
     setWalletAdapter(null);
   });
 });

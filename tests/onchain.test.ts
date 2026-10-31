@@ -57,9 +57,11 @@ describe("known contracts", () => {
     expect(musdAddressFor(null)).toBeNull();
   });
 
-  it("has a payable testnet router and vault, but no unknown-chain fallback", () => {
+  it("has a payable testnet router and refuses the old pool, with no unknown-chain fallback", () => {
     expect(routerAddressFor(31611)).toMatch(/^0x[0-9a-fA-F]{40}$/);
-    expect(vaultAddressFor(31611)).toMatch(/^0x[0-9a-fA-F]{40}$/);
+    // The first pool used an owner-set price and an older ABI. Until the new
+    // one is deployed, the app must say so instead of reading broken numbers.
+    expect(vaultAddressFor(31611)).toBeNull();
     expect(routerAddressFor(1)).toBeNull();
     expect(vaultAddressFor(1)).toBeNull();
     expect(routerAddressFor(null)).toBeNull();

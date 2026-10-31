@@ -12,7 +12,7 @@ MezoFlow is a wallet-connected Mezo application for Bitcoin-backed borrowing, MU
 | Automated tests | [tests/](https://github.com/dinitheth/Mezo-Credits/tree/main/tests) |
 
 > [!WARNING]
-> MezoFlow and its custom contracts are experimental and intended for Mezo Testnet. The contracts have not been independently audited. Do not use real funds. The deployed receipt-payment router has a known signature parsing bug and must be replaced before receipt-based checkout can work.
+> MezoFlow and its custom contracts are experimental and intended for Mezo Testnet. The contracts have not been independently audited. Do not use real funds. The deployed receipt-payment router has a known signature parsing bug, and the deployed lending pool predates the oracle-priced version in this repo; both replacements are ready in [`contracts/`](contracts/README.md) and need a funded deployment.
 
 ## Contents
 
@@ -65,7 +65,8 @@ flowchart LR
     RPC --> R[InvoiceRouter<br/>receipt-based payment]
     RPC --> M[MUSD token]
     UI -->|read balances, contract state, logs| RPC
-    UI -->|BTC/USD spot price reads| P[Coinbase, Binance,<br/>CoinGecko fallback]
+    UI -->|read BTC price and trove state| MZ[Mezo PriceFeed<br/>TroveManager]
+    V -->|read BTC price| MZ
     UI -->|payment requests and local activity| L[(Browser localStorage)]
 ```
 
@@ -75,7 +76,7 @@ flowchart LR
 | --- | --- | --- |
 | MUSD balances and contract positions | Mezo contracts via RPC | The UI reads live chain data; a displayed estimate is not a confirmed transaction. |
 | Submitted transaction | Connected wallet and Mezo receipt | The app records activity only after it receives a real transaction hash, then updates status from the receipt. |
-| BTC/USD display price | Coinbase, then Binance, then CoinGecko | Market price is used for planning and for the owner-posted pool price update. It is not an oracle feed enforced by `FlowVault`. |
+| BTC/USD price | Mezo `PriceFeed` | `FlowVault` reads Mezo's official price feed for every collateral calculation and reverts while the oracle is stale. The app also shows Mezo system totals and the wallet's trove from `TroveManager`. The external spot price is only used by the planner when the pool is unavailable, never for settlement. |
 | Payment request details | URL plus creator's browser storage | Creating a request does not write an invoice to a contract or a shared database. The link carries the requested amount, description, and recipient. |
 | Local activity and saved requests | Browser `localStorage` | Local history is device/browser-specific. The blockchain remains authoritative for successful contract events and token transfers. |
 
@@ -93,7 +94,7 @@ sequenceDiagram
     participant RPC as Mezo RPC
 
     Borrower->>UI: Connect wallet and enter BTC amount
-    UI->>RPC: Read wallet BTC, pool balance, loan, and posted price
+    UI->>RPC: Read wallet BTC, pool cash, loan, and Mezo price
     UI->>UI: Calculate borrow estimate and collateral level
     UI->>UI: Disable Borrow if entered BTC exceeds wallet balance
     Borrower->>Wallet: Confirm openLoan(amount, tier) with BTC value
@@ -105,7 +106,7 @@ sequenceDiagram
 ```
 
 1. The page reads the connected wallet's native BTC balance and the pool's available MUSD.
-2. It estimates borrowing power at 250%, 200%, or 150% collateral. The estimate is informational; `FlowVault` enforces the selected ratio against its own posted BTC price.
+2. It estimates borrowing power at 250%, 200%, or 150% collateral. The estimate is informational; `FlowVault` enforces the selected ratio with the BTC price from Mezo's `PriceFeed`.
 3. The Borrow button is disabled when the entered collateral exceeds the wallet's BTC balance or when that balance cannot be read. The balance is checked again before submitting.
 4. The wallet submits `openLoan(amount, tier)` with native BTC as `msg.value`. The contract updates loan accounting and transfers MUSD to the borrower.
 5. The wallet needs additional native BTC for gas, so the entire wallet balance should not be entered as collateral.
@@ -169,20 +170,23 @@ The direct-payment option sends MUSD straight to the recipient. It is a normal t
 
 ### `FlowVault.sol`
 
-The lending pool tracks MUSD cash, lender shares, and each borrower's BTC backing and MUSD debt.
+The lending pool tracks MUSD cash, principal out on loan, lender shares, and each borrower's BTC backing and MUSD debt.
 
 | Function | Effect |
 | --- | --- |
-| `lend(amount)` | Pulls MUSD from the lender and issues internal pool shares. Requires prior MUSD approval. |
-| `unlend(shares)` | Burns the lender's shares and transfers the corresponding available pool cash. |
-| `openLoan(amount, tier)` | Accepts native BTC, checks the tier, pool liquidity, and collateral ratio, then sends MUSD to the borrower. |
-| `repay(amount)` | Pulls MUSD from the borrower and returns repaid principal and accrued fees to pool cash. Requires prior approval. |
+| `lend(amount)` | Pulls MUSD from the lender and issues internal pool shares at the current share value. Requires prior MUSD approval. |
+| `unlend(shares)` | Burns the lender's shares and transfers the matching value, but only while enough MUSD is free as cash. |
+| `openLoan(amount, tier)` | Accepts native BTC, checks the tier, pool cash, and combined collateral ratio against Mezo's price, then sends MUSD to the borrower. |
+| `repay(amount)` | Pulls MUSD from the borrower, reduces outstanding principal, and leaves repaid fees in the pool as cash. Requires prior approval. |
 | `addBacking()` | Adds native BTC to an existing loan. |
 | `takeBacking(amount)` | Returns collateral only if the remaining position meets the contract's 150% withdrawal safety floor. |
 | `closeLoan(who)` | Allows anyone to repay a position below 110% backing and receive its collateral. |
-| `setPrice(price)` | Lets the contract owner update the USD-per-BTC price used by contract calculations. |
+| `cash()` / `totalAssets()` / `totalLent()` | Public views: MUSD on hand, cash plus principal out on loan, and principal out on loan. |
+| `btcPrice()` / `priceFeed()` | Reads Mezo's official `PriceFeed`; there is no owner price and no price setter. |
 
-The contract accrues a 1% annual fee over time. Accrued fees become pool cash when repaid; they are not paid out continuously. The contract stores one posted price and uses it for collateral math.
+Share value is `(cash + principal out on loan) / total shares`. Counting outstanding principal means a new lender cannot dilute existing lenders while loans are open. Accrued fees increase share value when borrowers repay. Withdrawals are limited to cash on hand, so a lender may need to wait for borrowers to repay before taking the full share value.
+
+`FlowVault` has no owner, no admin key, and no price setter. Every price-dependent action reads Mezo's `PriceFeed`; if the oracle is stale, those actions revert and the UI asks the person to try again shortly. Lending and repayment do not need a price and keep working.
 
 ### `InvoiceRouter.sol`
 
@@ -207,8 +211,13 @@ The current first deployment has a signature parsing bug in `_splitSig`. The cor
 | RPC | [https://rpc.test.mezo.org](https://rpc.test.mezo.org) |
 | Explorer | [https://explorer.test.mezo.org](https://explorer.test.mezo.org) |
 | MUSD | `0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503` |
+| Mezo `PriceFeed` | `0x86bCF0841622a5dAC14A313a15f96A95421b9366` |
+| Mezo `TroveManager` | `0xE47c80e8c23f6B4A1aE41c34837a0599D5D16bb0` |
+| Mezo `BorrowerOperations` | `0xCdF7028ceAB81fA0C6971208e83fa7872994beE5` |
 | First `InvoiceRouter` deployment | `0x99A9554C090C206a3811604448E5a29CAaB00d45` — defective signature parser; replacement required |
-| First `FlowVault` deployment | `0x241af24502bD8DC163c1163Cdb35E9845510544f` |
+| First `FlowVault` deployment (v1) | `0x241af24502bD8DC163c1163Cdb35E9845510544f` — owner-posted price; replaced by the oracle-priced source in this repo, new address pending |
+
+The new `FlowVault` source takes two constructor arguments: MUSD and Mezo's `PriceFeed`. The new `InvoiceRouter` source takes MUSD. Deployment steps and the exact addresses for each network are in [`contracts/README.md`](contracts/README.md). The fastest route is the wallet-signed deploy page at [`public/deploy.html`](public/deploy.html) (served at `/deploy.html`), which deploys both contracts from the browser without handling keys.
 
 Mezo mainnet MUSD is configured in the app, but MezoFlow's router and vault are not deployed to mainnet. The frontend should not be described as mainnet lending or payment infrastructure.
 
@@ -246,7 +255,15 @@ bun run test
 bun run build
 ```
 
-The test suite covers formatting, wallet connection and network behavior, app routes, receipt decoding, bill reconciliation, Mezo math, UI behavior, and error handling. These commands describe how to run checks; consult CI or run them locally for current results.
+The app test suite covers formatting, wallet connection and network behavior, app routes, receipt decoding, bill reconciliation, Mezo math, UI behavior, and error handling. Contract tests compile `FlowVault.sol` with solc and execute it in an in-process EVM:
+
+```sh
+cd contracts
+npm install
+npm test
+```
+
+The 10 contract tests cover dilution, fee accrual, cash withdrawal limits, the 150% backing floor, liquidation below 110%, stale-price reverts, combined loan safety, full repayment, and the absence of an owner price setter. These commands describe how to run checks; consult CI or run them locally for current results.
 
 ## Configuration
 
@@ -267,13 +284,17 @@ After changing deployment addresses in Vercel, redeploy the frontend so the clie
 
 ## Tests
 
-Tests are in [`tests/`](tests/). Run them with:
+Tests are in [`tests/`](tests/) for the app and [`contracts/test/`](contracts/test/) for the Solidity code. Run them with:
 
 ```sh
 bun run test
+
+cd contracts
+npm install
+npm test
 ```
 
-The suite is not a substitute for contract review, testnet transaction verification, or an independent security audit. The current repo test coverage does not make the deployed contracts production-safe.
+The app suite has 93 tests. The contract suite has 10 tests that run the real `FlowVault` bytecode against an in-process EVM. Neither suite is a substitute for contract review, testnet transaction verification, or an independent security audit. The current repo test coverage does not make the deployed contracts production-safe.
 
 ## Buildathon track fit
 
@@ -284,8 +305,8 @@ MezoFlow integrates MUSD. MEZO is not needed for these core workflows.
 
 ## Known limitations and next steps
 
-1. Deploy the corrected `InvoiceRouter` and configure its new address in Vercel; verify a small receipt-based payment end to end.
+1. Deploy the corrected `InvoiceRouter` and the oracle-priced `FlowVault`, configure their new addresses in Vercel, and verify a small receipt-based payment and a small loan end to end.
 2. Keep the Borrow screen's wallet BTC balance guard synchronized with the latest wallet balance and retain enough BTC for gas.
-3. Replace the owner-posted BTC price with a reliable on-chain oracle or another trust-minimized source. The current 15-minute freshness pause is enforced by the app, not by `FlowVault`, so direct contract calls can bypass it.
-4. Add broader contract tests and obtain independent review before any mainnet deployment.
+3. Borrowing and closing depend on Mezo's `PriceFeed`. If the oracle is stale, those actions pause; the app explains this instead of pricing off an old number.
+4. Obtain an independent contract review before any mainnet deployment.
 5. Consider a shared bill/indexing service if payment requests need to sync across devices without relying on a saved link and local browser storage.

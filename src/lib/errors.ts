@@ -18,6 +18,8 @@ export function friendly(e: unknown): string {
     return "You closed the wallet popup, so nothing happened.";
   if (/insufficient funds|insufficient balance|exceeds balance/.test(m))
     return "There is not enough money in your wallet for this. Top up and try again.";
+  if (/pricefailed|oracle is stale|pricefeed/.test(m))
+    return "Mezo's Bitcoin price is not fresh right now. Please try again in a minute.";
   if (/no chain was provided|chain mismatch|unrecognized chain|wrong network/.test(m))
     return "Your wallet is on the wrong network. Switch to Mezo and try again.";
   if (/execution reverted/.test(m))

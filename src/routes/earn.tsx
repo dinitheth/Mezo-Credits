@@ -43,8 +43,11 @@ function Earn() {
   const vault = vaultAddressFor(s.chainId ?? 31611);
   const onMezo = !s.chainId || s.chainId === 31611 || s.chainId === 31612;
   const [poolValue, setPoolValue] = useState(0);
+  const [yourCash, setYourCash] = useState(0);
   const [shares, setShares] = useState(0n);
-  const [poolSize, setPoolSize] = useState(0);
+  const [poolCash, setPoolCash] = useState(0);
+  const [poolTotal, setPoolTotal] = useState(0);
+  const [outOnLoan, setOutOnLoan] = useState(0);
   const [walletMusd, setWalletMusd] = useState<number | null>(null);
   const [dep, setDep] = useState("");
   const [wd, setWd] = useState("");
@@ -56,7 +59,9 @@ function Earn() {
     if (!vault) return;
     try {
       const g = await getVaultGlobals(vault);
-      setPoolSize(Number(g.poolBalance) / 1e18);
+      setPoolCash(Number(g.cash) / 1e18);
+      setPoolTotal(Number(g.totalAssets) / 1e18);
+      setOutOnLoan(Number(g.totalLent) / 1e18);
       if (!s.account) {
         setWalletMusd(null);
         return;
@@ -68,6 +73,7 @@ function Earn() {
       }
       const pos = await getVaultPosition(vault, s.account);
       setPoolValue(Number(pos.poolValue) / 1e18);
+      setYourCash(Number(pos.cashValue) / 1e18);
       setShares(pos.shares);
     } catch {
       // Leave last values on screen.
@@ -134,11 +140,14 @@ function Earn() {
       if (!vault) throw new Error("The pool is not open yet.");
       if (!s.account) throw new Error("Connect your wallet first.");
       const pos = await getVaultPosition(vault, s.account);
+      if (BigInt(Math.round(a * 1e18)) > pos.cash)
+        throw new Error(
+          `Only ${num(Number(pos.cash) / 1e18, 2)} MUSD is free right now. The rest is out on loan and comes back when borrowers repay.`,
+        );
       const n =
-        pos.totalShares === 0n
+        pos.totalShares === 0n || pos.totalAssets === 0n
           ? 0n
-          : (BigInt(Math.round(a * 1e18)) * pos.totalShares) /
-            (pos.poolBalance === 0n ? 1n : pos.poolBalance);
+          : (BigInt(Math.round(a * 1e18)) * pos.totalShares) / pos.totalAssets;
       const take = n > pos.shares ? pos.shares : n;
       if (take === 0n) throw new Error("Nothing to take.");
       const hash = await vaultUnlend(vault, s.account, take);
@@ -169,9 +178,9 @@ function Earn() {
 
       {!vault ? (
         <Card className="mt-6">
-          <h2 className="text-xl font-semibold">The pool opens at launch</h2>
+          <h2 className="text-xl font-semibold">The pool is getting an upgrade</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Lending starts as soon as our pool contract is live on Mezo.
+            Lending starts again when the new pool is live on Mezo.
           </p>
           <div className="mt-3">
             <Link to="/borrow">
@@ -182,22 +191,32 @@ function Earn() {
       ) : (
         <>
           <Card className="mt-6">
-            <div className="grid grid-cols-2 gap-5">
+            <div className="grid grid-cols-2 gap-5 md:grid-cols-4">
               <Stat
-                label="Cash in the pool"
-                value={`${num(poolSize, 2)} MUSD`}
+                label="Cash free"
+                value={`${num(poolCash, 2)} MUSD`}
                 tone="green"
-                tip="MUSD sitting in the pool right now. Money out on loan is not included."
+                tip="MUSD sitting in the pool right now. This is what borrowers can take."
               />
               <Stat
-                label="Your share in cash"
-                value={`${num(poolValue, 2)} MUSD`}
+                label="Out on loan"
+                value={`${num(outOnLoan, 2)} MUSD`}
+                tip="Money borrowers still have. It comes back as they repay."
+              />
+              <Stat
+                label="Pool total"
+                value={`${num(poolTotal, 2)} MUSD`}
                 tone="gold"
-                tip="Cash your shares can take now. Money out on loan, and fees not yet repaid, are not included."
+                tip="Cash plus money out on loan. Fees count when borrowers repay."
+              />
+              <Stat
+                label="Your share"
+                value={`${num(poolValue, 2)} MUSD`}
+                tip="Your part of the pool total, including money out on loan."
               />
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
-              These numbers are cash only. Loans out, and fees not yet paid, are not in them.
+              Your share counts cash and money out on loan. You can take cash only while it is free.
             </p>
             {!onMezo && (
               <p className="mt-3 text-xs text-muted-foreground">
@@ -248,10 +267,10 @@ function Earn() {
               </Field>
               <p className="text-xs text-muted-foreground">
                 Cash you can take now:{" "}
-                <span className="font-mono text-foreground">{num(poolValue, 2)} MUSD</span>
+                <span className="font-mono text-foreground">{num(yourCash, 2)} MUSD</span>
               </p>
               <p className="text-xs text-muted-foreground">
-                Money out on loan becomes available when borrowers repay.
+                The rest of your share is out on loan and becomes cash when borrowers repay.
               </p>
             </Card>
           </div>

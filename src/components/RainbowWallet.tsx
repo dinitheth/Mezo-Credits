@@ -1,10 +1,7 @@
 import "@rainbow-me/rainbowkit/styles.css";
 
 import { useEffect, type ReactNode } from "react";
-import {
-  ConnectButton,
-  RainbowKitProvider,
-} from "@rainbow-me/rainbowkit/components";
+import { ConnectButton, RainbowKitProvider } from "@rainbow-me/rainbowkit/components";
 import {
   createConfig,
   http,
@@ -63,27 +60,32 @@ function injectedWalletEntry(
   index: number,
   target?: NonNullable<Parameters<typeof injected>[0]>["target"],
 ): CreateConnectorFn {
-  const connector = injected(target ? { target } : {
-    target: {
-      id,
-      name,
-      provider: (targetWindow) => (targetWindow as unknown as InjectedWindow).ethereum,
-    },
-  });
+  const connector = injected(
+    target
+      ? { target }
+      : {
+          target: {
+            id,
+            name,
+            provider: (targetWindow) => (targetWindow as unknown as InjectedWindow).ethereum,
+          },
+        },
+  );
 
-  return (config) => Object.assign(connector(config), {
-    rkDetails: {
-      id,
-      name,
-      shortName: name,
-      iconUrl: walletIcon(letter, color),
-      iconBackground: color,
-      groupName: "Browser wallets",
-      groupIndex: 1,
-      index,
-      isRainbowKitConnector: true,
-    },
-  });
+  return (config) =>
+    Object.assign(connector(config), {
+      rkDetails: {
+        id,
+        name,
+        shortName: name,
+        iconUrl: walletIcon(letter, color),
+        iconBackground: color,
+        groupName: "Browser wallets",
+        groupIndex: 1,
+        index,
+        isRainbowKitConnector: true,
+      },
+    });
 }
 
 const mezoConnectors: CreateConnectorFn[] = [
@@ -92,8 +94,10 @@ const mezoConnectors: CreateConnectorFn[] = [
     name: "MetaMask",
     provider: (targetWindow) => {
       const ethereum = (targetWindow as unknown as InjectedWindow).ethereum;
-      return ethereum?.providers?.find((provider) => provider.isMetaMask) ??
-        (ethereum?.isMetaMask ? ethereum : undefined);
+      return (
+        ethereum?.providers?.find((provider) => provider.isMetaMask) ??
+        (ethereum?.isMetaMask ? ethereum : undefined)
+      );
     },
   }),
   injectedWalletEntry("backpack", "Backpack", "B", "#e13e3e", 2, {
@@ -103,8 +107,11 @@ const mezoConnectors: CreateConnectorFn[] = [
       const walletWindow = targetWindow as unknown as InjectedWindow;
       const backpack = walletWindow.backpack?.ethereum;
       const ethereum = walletWindow.ethereum;
-      return backpack ?? ethereum?.providers?.find((provider) => provider.isBackpack) ??
-        (ethereum?.isBackpack ? ethereum : undefined);
+      return (
+        backpack ??
+        ethereum?.providers?.find((provider) => provider.isBackpack) ??
+        (ethereum?.isBackpack ? ethereum : undefined)
+      );
     },
   }),
   injectedWalletEntry("other-injected", "Other browser wallet", "W", "#315c48", 3),
