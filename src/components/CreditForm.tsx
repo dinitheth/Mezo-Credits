@@ -155,8 +155,8 @@ export function CreditForm({
       )}
 
       <p className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
-        The pool charges 1% a year on what you owe, counted every second and paid to lenders. You
-        can pay it back whenever you like.
+        Borrowing costs 1% a year. You pay it when you repay. It goes to the people who lent the
+        MUSD.
       </p>
 
       {power > 0 && price > 0 && (

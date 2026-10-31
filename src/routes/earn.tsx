@@ -163,8 +163,8 @@ function Earn() {
     <Shell>
       <h1 className="text-3xl font-bold">Grow your money</h1>
       <p className="mt-2 max-w-2xl text-muted-foreground">
-        Lend MUSD to borrowers. They owe 1% a year, and that fee reaches the pool when they repay.
-        Money out on loan is not cash you can take until it comes back.
+        Lend MUSD. You earn 1% a year when borrowers pay it back. Money out on loan is not cash you
+        can take yet.
       </p>
 
       {!vault ? (
@@ -276,8 +276,8 @@ function Earn() {
         <Card>
           <h3 className="font-semibold text-primary">When growth happens</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Borrowers owe 1% a year. The fee is added to the pool only when they repay, and then
-            every share is worth more. If nothing is repaid, the pool has not grown.
+            Borrowers pay 1% a year when they repay. That extra money is shared by everyone who
+            lent. If no one repays, nothing grows.
           </p>
         </Card>
         <Card>
