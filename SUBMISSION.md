@@ -19,11 +19,21 @@ The two v1 contracts above are the deployments a judge can inspect today. The re
 
 | Criterion | Proof in this repo |
 | --- | --- |
-| Mezo integration | `FlowVault` prices every loan with Mezo's official `PriceFeed` (`fetchPrice()`), not an app-set number. `src/lib/onchain.ts` reads the same feed plus `TroveManager` system totals and the wallet's trove, and `MezoProtocolCard` shows them live. MUSD is the money moved for payments, loans and deposits. Every recorded action has a real wallet receipt. No mocked balances or hashes. |
+| Mezo integration | `FlowVault` prices every loan with Mezo's official `PriceFeed` (`fetchPrice()`), not an app-set number, and has no owner or price setter. `src/lib/onchain.ts` reads the same feed plus `TroveManager` system totals and the wallet's trove, and `MezoProtocolCard` shows them live. MUSD is the money moved for payments, loans and deposits. Every recorded action has a real wallet receipt. No mocked balances or hashes. |
 | Product and business viability | A payer needs only a wallet on Mezo; a payee makes a link in seconds. First users are freelancers and small shops already paid in MUSD, plus Bitcoin holders who want dollars without selling. Revenue path and risks are stated below. |
 | Technical implementation | `contracts/FlowVault.sol` (share value includes principal out on loan, 1%/year fee, 110% close floor, 150% backing floor, oracle reads, no owner), `contracts/InvoiceRouter.sol`, `src/lib/onchain.ts`, `src/lib/bills.ts`. 93 app tests and 10 contract tests pass; typecheck and production build pass. |
 | User experience | Plain-word pages, no protocol jargon; Disconnect; friendly failure text that says nothing moved; mobile layout; QR codes and receipt links. Borrowing pauses with a plain message when Mezo's price is stale instead of using an old number. |
 | Submission materials | This file, `README.md`, `contracts/README.md`, the deck at `public/deck.html`, the test suites, and the demo script below. |
+
+### Check the Mezo integration in 30 seconds, with no wallet
+
+Open `https://mezocredits.vercel.app/borrow` and scroll to **"Mezo, live — Read from Mezo's own contracts"**. The card shows four numbers read directly from Mezo on chain 31611:
+
+- Bitcoin price from `PriceFeed.fetchPrice()`
+- Bitcoin locked and MUSD borrowed from `TroveManager`
+- Mezo system safety from `TroveManager.getTCR(price)`
+
+Those calls are in `src/lib/onchain.ts` (`getMezoSystem`, `getMezoTrove`) and are not copied from an exchange API. The planner on the same page uses that same Mezo price, even before the new pool is deployed. The loan contract reads the identical feed; `FlowVault.priceFeed()` is set once in the constructor and there is no function that can change it.
 
 ## Who it is for and how it could pay for itself
 
