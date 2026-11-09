@@ -5,7 +5,7 @@
   "description": "MezoFlow contracts and their tests",
   "scripts": {
     "test": "node test/run.cjs",
-    "build:deploy": "node init && node tools/build-deploy-page.cjs",
+    "build:deploy": "node tools/build-deploy-page.cjs",
     "check:deploy": "node tools/check-deploy.cjs"
   },
   "devDependencies": {
