@@ -11,6 +11,7 @@ import { friendly } from "@/lib/errors";
 import {
   didSucceed,
   getBtcBalanceWei,
+  getMezoSystem,
   getMusdBalance,
   getVaultGlobals,
   getVaultPosition,
@@ -52,6 +53,7 @@ function Borrow() {
   const [walletBtcWei, setWalletBtcWei] = useState<bigint | null>(null);
   const [walletBtcError, setWalletBtcError] = useState(false);
   const [poolPrice, setPoolPrice] = useState<bigint>(0n);
+  const [mezoPrice, setMezoPrice] = useState<bigint>(0n);
 
   const refreshPool = useCallback(async () => {
     if (!vault) return;
@@ -83,6 +85,26 @@ function Borrow() {
     const timer = window.setInterval(() => void refreshPool(), 30_000);
     return () => window.clearInterval(timer);
   }, [refreshPool]);
+
+  // Mezo's own price, used by the planner even before the pool is deployed.
+  useEffect(() => {
+    if (!onMezo) return;
+    let live = true;
+    const chainId = s.chainId ?? 31611;
+    const load = () => {
+      void getMezoSystem(chainId)
+        .then((m) => {
+          if (live && m) setMezoPrice(m.price);
+        })
+        .catch(() => {});
+    };
+    load();
+    const timer = window.setInterval(load, 30_000);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+    };
+  }, [onMezo, s.chainId]);
 
   useEffect(() => {
     let live = true;
@@ -201,6 +223,10 @@ function Borrow() {
     }
   };
 
+  // The pool's feed and Mezo's feed are the same price; prefer the pool's copy
+  // when it exists, and fall back to Mezo's own read when it does not.
+  const shownPrice = poolPrice > 0n ? poolPrice : mezoPrice;
+
   return (
     <Shell>
       <div className="grid gap-6 lg:grid-cols-5">
@@ -271,7 +297,7 @@ function Borrow() {
             walletBtcWei={walletBtcWei}
             walletBtcError={walletBtcError}
             poolSize={poolCash}
-            priceOverride={poolPrice > 0n ? Number(poolPrice) / 1e18 : undefined}
+            priceOverride={shownPrice > 0n ? Number(shownPrice) / 1e18 : undefined}
           />
         </Card>
       </div>
